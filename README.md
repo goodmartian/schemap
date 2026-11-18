@@ -30,7 +30,7 @@ npx skills add goodmartian/schemap -g -y
 
 ## Development
 
-- Tests: `python3 tests/run_checks.py`.
+- Tests: `node tests/run-checks.mjs`.
 - Screenshot: `bash docs/screenshots/make.sh`.
 
 ## License

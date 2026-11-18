@@ -19,12 +19,11 @@ node skills/schemap/check.mjs schema.json -o diagram.html
 ## Requirements
 
 - The page needs only a browser.
-- `check.mjs` needs Node 18+.
-- The importers in `skills/schemap/importers/` need Python 3.9+.
+- `check.mjs` and the importers in `skills/schemap/importers/` need Node 18+.
 
 ## What the plugin runs
 
-- `node check.mjs` and the Python importers read local files and write `schema.json` and the page. No network.
+- `check.mjs` and the importers read local files and write `schema.json` and the page. No network.
 - `psql` with `importers/postgres_schema.sql` runs one read-only query against the system catalogs of the database the user names. The connection string stays in the user's environment and is not written to files.
 - The page loads nothing from the network.
 - An artifact is published to claude.ai only when the user asks for a link.

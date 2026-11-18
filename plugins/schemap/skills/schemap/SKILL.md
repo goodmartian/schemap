@@ -11,7 +11,7 @@ Below, `<skill-dir>` is this skill's folder (the one that holds this SKILL.md). 
 
 - `viewer.html` — the whole viewer. It reads `schema.json` from the page, checks it and lays it out in the browser. A page is `viewer.html` with the schema appended.
 - `check.mjs` — checks `schema.json` with the viewer's own code and writes the page. Needs Node 18+.
-- `importers/` — turn SQL, Prisma, DBML or a live Postgres database into `schema.json`. Need Python 3.9+. Optional: `schema.json` can also be written by hand.
+- `importers/` — turn SQL, Prisma, DBML or a live Postgres database into `schema.json`. Need Node 18+, like `check.mjs`. Optional: `schema.json` can also be written by hand.
 
 ## Workflow
 
@@ -50,16 +50,16 @@ To update a diagram later, change the source or `schema.json` and rebuild. Repub
 
 | The project has | Run | Notes |
 |---|---|---|
-| SQL migrations or a schema dump | `python3 "<skill-dir>/importers/import_sql.py" migrations/ -o schema.json` | Replays CREATE/ALTER/DROP TABLE and COMMENT ON in file-name order; goose and dbmate files, `*.up.sql` |
+| SQL migrations or a schema dump | `node "<skill-dir>/importers/import-sql.mjs" migrations/ -o schema.json` | Replays CREATE/ALTER/DROP TABLE and COMMENT ON in file-name order; goose and dbmate files, `*.up.sql` |
 | A Postgres database (11+) | `psql "$DATABASE_URL" -X -A -t -f "<skill-dir>/importers/postgres_schema.sql" -o schema.json` | Exact, and read-only. Ask before connecting to anything but a local or development database. Never write a connection string into a file. Drop system modules (Supabase `auth`, `storage`…) the reader does not need |
-| `schema.prisma` | `python3 "<skill-dir>/importers/import_prisma.py" prisma/schema.prisma -o schema.json` | Uses database names (`@@map`, `@map`); `///` comments become notes |
-| A DBML file | `python3 "<skill-dir>/importers/import_dbml.py" schema.dbml -o schema.json` | `TableGroup`s become modules |
+| `schema.prisma` | `node "<skill-dir>/importers/import-prisma.mjs" prisma/schema.prisma -o schema.json` | Uses database names (`@@map`, `@map`); `///` comments become notes |
+| A DBML file | `node "<skill-dir>/importers/import-dbml.mjs" schema.dbml -o schema.json` | `TableGroup`s become modules |
 | Its own schema model: a JSON or YAML file that its DBML, SQL or docs are generated from | A short script in the project, next to the model, that maps it to `schema.json`; keep it so the diagram can be rebuilt | Usually the richest source: statuses, titles and notes live there, while DBML and SQL have no field for a title or a status. Its counts must match the model's |
 | A written spec or docs, no code yet | Write `schema.json` by hand from the text, then `node "<skill-dir>/check.mjs" schema.json` | List every table the text names; keep the spec's own words for titles and notes |
-| Another ORM (Rails, Django, Drizzle, TypeORM…) | Get SQL first: `rails db:schema:dump` with `structure.sql`, `python manage.py sqlmigrate`, `drizzle-kit export`, then `import_sql.py` | Or a live database, if one runs locally |
-| Another database (MySQL, SQLite, SQL Server…) and no Python | Ask the database for its tables, columns and foreign keys (`information_schema`, `PRAGMA table_info`) and write `schema.json` from the answer | The format is small; [schema-format.md](schema-format.md) has an example |
+| Another ORM (Rails, Django, Drizzle, TypeORM…) | Get SQL first: `rails db:schema:dump` with `structure.sql`, `python manage.py sqlmigrate`, `drizzle-kit export`, then `import-sql.mjs` | Or a live database, if one runs locally |
+| Another database (MySQL, SQLite, SQL Server…) | Ask the database for its tables, columns and foreign keys (`information_schema`, `PRAGMA table_info`) and write `schema.json` from the answer | The format is small; [schema-format.md](schema-format.md) has an example |
 
-The Python importers take `--title` (the page name) and `--lang`. The Postgres query writes the database name as `title` and `en` as `lang`; change them in `schema.json`.
+The importers take `--title` (the page name) and `--lang`. The Postgres query writes the database name as `title` and `en` as `lang`; change them in `schema.json`.
 
 ## When the build or a page goes wrong
 
