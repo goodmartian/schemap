@@ -365,6 +365,7 @@ const DIM_ALPHA = 0.25;
 const FONT = { table: 13, title: 12, status: 11, column: 12, type: 11, mark: 11 };
 const PAD_X = 12, MARK_W = 24;       // поле карточки слева и справа; колонка пометок PK / FK
 const NAME_Y = 16, TITLE_Y = 32;     // середины строк шапки: поле 8, имя 16, название 16, поле 8 — шапка 48
+const MINIMAP_PAD = 8;               // поле мини-карты от края её панели, в экранных пикселях
 const LABEL_H = 24, LABEL_PAD = 8;   // подпись области: высота и поле слева, в экранных пикселях
 
 const canvas = document.getElementById('canvas');
@@ -390,6 +391,7 @@ function readTheme() {
     muted: token('--color-text-muted'),
     accent: token('--color-accent'),
     // скругления и размер мини-карты — из тех же токенов, что у страницы: холст не держит своих копий чисел
+    radiusInner: parseFloat(token('--radius-inner')),
     radiusCard: parseFloat(token('--radius-outer')),
     radiusArea: parseFloat(token('--radius-area')),
     minimap: [parseFloat(token('--minimap-width')), parseFloat(token('--minimap-height'))],
@@ -521,9 +523,8 @@ const placed = [];                                    // уже нарисова
 const frame = { scale: 1, originX: 0, originY: 0, stroke: 0, cardRadius: 0, areaRadius: 0 };
 const snap = (value) => Math.round(value * frame.scale) / frame.scale;
 // скруглённый прямоугольник; в браузерах без roundRect — прямой
-const rounded = ctx.roundRect
-  ? (x, y, w, h, r) => ctx.roundRect(x, y, w, h, r)
-  : (x, y, w, h) => ctx.rect(x, y, w, h);
+const roundedIn = (c, x, y, w, h, r) => (c.roundRect ? c.roundRect(x, y, w, h, r) : c.rect(x, y, w, h));
+const rounded = (x, y, w, h, r) => roundedIn(ctx, x, y, w, h, r);
 const shape = (x, y, w, h) => rounded(x, y, w, h, frame.cardRadius);
 function visibleRows(t, y0, y1) {                     // первая и последняя строка карточки, что попадают в окно по высоте
   const { head, row } = CARD;
@@ -708,10 +709,13 @@ function drawMinimap(x0, y0, x1, y1) {
     minimapShown = !whole && minimap.clientWidth > 0;
   }
   if (!minimapShown) return;
+  // Та же схема, что на холсте, в уменьшенном виде: полосы модулей со скруглением, приглушённые карточки,
+  // поле 8 от края панели. Размеры — в пикселях мини-карты, поэтому делятся на её масштаб.
   const [cssW, cssH] = theme.minimap, dpr = view.dpr;
-  map.scale = Math.min(cssW / w, cssH / h);
+  map.scale = Math.min((cssW - 2 * MINIMAP_PAD) / w, (cssH - 2 * MINIMAP_PAD) / h);
   map.ox = (cssW - w * map.scale) / 2;
   map.oy = (cssH - h * map.scale) / 2;
+  const px = 1 / map.scale;
   const key = [diagram.code, diagram.mode, theme.background, dpr].join('|');
   if (key !== minimapKey) {                           // слой рисуется заново, только когда он изменился
     minimapKey = key;
@@ -722,16 +726,18 @@ function drawMinimap(x0, y0, x1, y1) {
     layer.fillStyle = theme.panel;
     layer.fillRect(0, 0, cssW, cssH);
     layer.setTransform(dpr * map.scale, 0, 0, dpr * map.scale, dpr * map.ox, dpr * map.oy);
-    layer.globalAlpha = 0.12;
+    layer.globalAlpha = 0.1;                          // полосы модулей, как на холсте
     for (const area of diagram.areas) {
       layer.fillStyle = moduleColor(area.module);
-      layer.fillRect(area.x, area.y, area.w, area.h);
+      layer.beginPath();
+      roundedIn(layer, area.x, area.y, area.w, area.h, theme.radiusInner * px);
+      layer.fill();
     }
-    layer.globalAlpha = 0.7;
+    layer.globalAlpha = 0.55;                         // карточки приглушены, как на общем виде холста
     for (const [color, list] of byColor(diagram.tables, diagram.allIndexes)) {
       layer.fillStyle = color;
       layer.beginPath();
-      for (const i of list) { const t = diagram.tables[i]; layer.rect(t.x, t.y, CARD.width, t.h); }
+      for (const i of list) { const t = diagram.tables[i]; roundedIn(layer, t.x, t.y, CARD.width, t.h, 1.5 * px); }
       layer.fill();
     }
   }
@@ -740,13 +746,15 @@ function drawMinimap(x0, y0, x1, y1) {
   mctx.drawImage(minimapLayer, 0, 0);
   mctx.setTransform(dpr * map.scale, 0, 0, dpr * map.scale, dpr * map.ox, dpr * map.oy);
   const vx = Math.max(0, x0), vy = Math.max(0, y0), vw = Math.min(w, x1) - vx, vh = Math.min(h, y1) - vy;
-  mctx.globalAlpha = 0.12;
+  mctx.beginPath();                                   // рамка окна: тонкая, скруглённая, как фокус у панелей
+  roundedIn(mctx, vx, vy, vw, vh, theme.radiusInner * px);
+  mctx.globalAlpha = 0.08;
   mctx.fillStyle = theme.accent;
-  mctx.fillRect(vx, vy, vw, vh);
+  mctx.fill();
   mctx.globalAlpha = 1;
   mctx.strokeStyle = theme.accent;
-  mctx.lineWidth = 1.5 / map.scale;
-  mctx.strokeRect(vx, vy, vw, vh);
+  mctx.lineWidth = px;
+  mctx.stroke();
 }
 let minimapDrag = null;                               // рамка мини-карты на экране, пока её тянут: меряется один раз
 function minimapGo(event) {                           // середина окна — в точку мини-карты под указателем
