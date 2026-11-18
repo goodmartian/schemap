@@ -4,7 +4,7 @@ A skill for coding agents that draws a database schema as one HTML file or a cla
 
 Sources: SQL migrations, a Postgres database, Prisma, DBML, or a written spec.
 
-The viewer has search, a minimap, a keys-only view, a filter for new and changed tables, light and dark themes, links to a single table, export to DBML and SQL for dbdiagram.io, ChartDB, drawDB and draw.io, and, in a claude.ai artifact, comments on a table or a column that can be sent to Claude. The interface is in English or Russian.
+The viewer has search, a minimap, a click on a reference line to ride to the table it points at (Backspace goes back), a keys-only view, a filter for new and changed tables, light and dark themes, links to a single table, export to DBML and SQL for dbdiagram.io, ChartDB, drawDB and draw.io, and, in a claude.ai artifact, comments on a table or a column that can be sent to Claude. The interface is in English or Russian.
 
 ## Usage
 

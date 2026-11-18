@@ -5,7 +5,7 @@ description: Use when someone wants to see, explain, review or share a database 
 
 # schemap: database diagrams
 
-The result is one HTML file that works offline, or a private claude.ai artifact page. It shows every table, column and foreign key, grouped into coloured modules, and stays readable at 200+ tables. Viewers can zoom, find a table, click a table to light up its links and read column notes. Highlighted links show "many" and "one" at their ends. A switch hides everything but keys (primary keys and both ends of every reference), which makes a big schema several times smaller. They can also filter by status (new / changing), move around with a minimap, and open a link that lands on one table.
+The result is one HTML file that works offline, or a private claude.ai artifact page. It shows every table, column and foreign key, grouped into coloured modules, and stays readable at 200+ tables. Viewers can zoom, find a table, click a table to light up its links and read column notes. Highlighted links show "many" and "one" at their ends. A click on a link line moves the view along it to the table at the other end; Backspace or the back arrow in the panel returns. A switch hides everything but keys (primary keys and both ends of every reference), which makes a big schema several times smaller. They can also filter by status (new / changing), move around with a minimap, and open a link that lands on one table.
 
 Below, `<skill-dir>` is this skill's folder (the one that holds this SKILL.md). In it:
 

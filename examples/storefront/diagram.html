@@ -80,9 +80,9 @@
   }
   /* главный холст — на всё окно; у мини-карты свой холст и свои правила */
   #canvas { position: fixed; inset: 0; display: block; width: 100%; height: 100%; touch-action: none; cursor: grab; }
-  #canvas.over-table { cursor: pointer; }
+  #canvas.pointing { cursor: pointer; }      /* таблица или связь под курсором */
   #canvas.panning { cursor: grabbing; }
-  #canvas.commenting { cursor: crosshair; }           /* режим комментариев claude.ai; правило ниже .over-table и главнее */
+  #canvas.commenting { cursor: crosshair; }           /* режим комментариев claude.ai; правило ниже .pointing и главнее */
   .panel {
     position: fixed;
     padding: var(--space-1);
@@ -205,6 +205,7 @@
   }
   #details-top { flex: none; display: flex; align-items: center; gap: var(--space-2); padding: var(--space-1) var(--space-1) var(--space-1) var(--space-4); }
   #details-top .square { flex: none; }
+  #details-top:has(#details-back:not([hidden])) { padding-left: var(--space-1); }   /* «назад» встаёт в поле слева */
   #details-body { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 0 var(--space-4) var(--space-3); overflow-wrap: anywhere; }
   h2 { flex: 1; min-width: 0; margin: 0; font-size: 15px; line-height: 24px; font-weight: 600; overflow-wrap: anywhere; }
   /* заголовок раздела, как в Linear: название цветом текста, рядом число серым */
@@ -304,6 +305,7 @@
 
 <aside id="details" class="panel" data-label="details" hidden>
   <div id="details-top">
+    <button id="details-back" class="control square" type="button" data-label="back" data-title="backHint" hidden><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></svg></button>
     <h2 id="details-name"></h2>
     <button id="details-copy" class="control square" type="button" data-label="copyLink" data-title="copyLink"><svg id="copy-link" class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg><svg id="copy-done" class="icon" viewBox="0 0 24 24" aria-hidden="true" hidden><path d="M20 6 9 17l-5-5"/></svg></button>
     <button id="details-close" class="control square" type="button" data-label="close"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>
@@ -862,6 +864,7 @@ const STRINGS = {
     canvas: 'Database diagram', toolbar: 'Diagram tools', statusMenu: 'Table status', search: 'Table', searchHint: 'Find a table  /',
     searchLabel: 'Find a table', zoom: 'Zoom', zoomOut: 'Zoom out', zoomIn: 'Zoom in', fit: 'Fit',
     details: 'Table details', copyLink: 'Copy link', copied: 'Link copied', close: 'Close',
+    back: 'Back', backHint: 'Back  ⌫', goTo: 'Click to go to',
     columns: 'Columns', incoming: 'Referenced by', notFound: 'Not found',
     allTables: 'All tables', failure: 'The diagram did not open.',
     modeKeys: 'Keys only', modeKeysHint: 'Keys only: primary keys and the columns of references', minimap: 'Diagram map',
@@ -877,6 +880,7 @@ const STRINGS = {
     canvas: 'Схема базы', toolbar: 'Инструменты схемы', statusMenu: 'Статус таблиц', search: 'Таблица', searchHint: 'Поиск таблицы  /',
     searchLabel: 'Поиск таблицы', zoom: 'Масштаб', zoomOut: 'Уменьшить', zoomIn: 'Увеличить', fit: 'Весь вид',
     details: 'Описание таблицы', copyLink: 'Скопировать ссылку', copied: 'Ссылка скопирована', close: 'Закрыть',
+    back: 'Назад', backHint: 'Назад  ⌫', goTo: 'Нажмите, чтобы перейти к',
     columns: 'Столбцы', incoming: 'Ссылаются сюда', notFound: 'Не найдено',
     allTables: 'Все таблицы', failure: 'Схема не открылась.',
     modeKeys: 'Только ключи', modeKeysHint: 'Только ключи: первичные ключи и столбцы связей', minimap: 'Карта схемы',
@@ -920,6 +924,9 @@ const EDGE_INSET = 24;
 const ZOOM_MAX = 2.5;
 const ZOOM_STEP = 1.4;
 const CLICK_SLOP_PX = 4;
+const EDGE_HIT_PX = 5;               // связь под курсором — ближе этого к её линии на экране
+const FLIGHT_MS = 400;               // переход по связи: столько едет камера
+const TRAIL_LIMIT = 50;              // столько шагов «назад» помнит переход по связям
 const RESULTS_LIMIT = 8;
 const DIM_ALPHA = 0.25;
 // Размеры — на шкале 4 / 8 / 12 / 16 / 24, как в CSS. Шрифты: 13 — имя таблицы, 12 — строки, 11 — служебное.
@@ -936,7 +943,7 @@ const canvas = document.getElementById('canvas');
 const ctx = canvas.getContext('2d', { alpha: false });
 const toolbar = document.getElementById('toolbar'), searchPanel = document.getElementById('search-panel');
 const view = { diagram: null, zoom: 1, tx: 0, ty: 0, width: 0, height: 0, dpr: 1, hover: -1, selected: -1,
-  hoverRow: null, status: null, mode: 'all', fitZoom: 1, fitted: true, moving: false, quiet: false };
+  hoverRow: null, hoverEdge: -1, status: null, mode: 'all', fitZoom: 1, fitted: true, moving: false, quiet: false };
 let SOURCE, DATA, CARD, MODULES, DIAGRAMS, DIAGRAMS_BY_SLUG, TABLES, HAS_STATUS, theme;   // SOURCE — проверенная схема, для выгрузки
 
 // ---------- тема ----------
@@ -1131,6 +1138,7 @@ const BUCKET_STYLE = {
 };
 const visible = [], dimmed = [], bright = [];       // карточки в окне; при выборе — приглушённые и яркие
 const faint = [];                                     // связи в окне, кроме связей выбранной таблицы
+const shownEdges = [];                                // все связи, нарисованные в последнем кадре: на них можно нажать
 const placed = [];                                    // уже нарисованные подписи областей: x, y, ширина
 
 // Привязка к пикселям устройства: края прямоугольников и строки текста встают на целый пиксель — так резче
@@ -1468,6 +1476,8 @@ function draw() {
     });
     ctx.globalAlpha = lit ? 0.12 : 0.45;
     strokeEdges(diagram, faint, px, traceEdge);
+    shownEdges.length = 0;
+    shownEdges.push(...faint);
 
     visible.length = 0;                               // карточки в окне
     diagram.tables.forEach((t, i) => {
@@ -1484,6 +1494,7 @@ function draw() {
       if (chosen && !quiet) {                         // связи выбранной таблицы — под ней и её соседями,
         ctx.globalAlpha = 1;                          // чтобы линия не шла по их тексту
         strokeEdges(diagram, chosen.edges, 1.5 * px, traceEdge);
+        shownEdges.push(...chosen.edges);
       }
       drawCards(diagram, bright, 1, level, y0, y1);
       if (chosen) {
@@ -1515,7 +1526,13 @@ function draw() {
         ctx.globalAlpha = 1;
         strokeEdges(diagram, list, 1.5 * px, traceEdge);
         edgeEnds(diagram, list, px);
+        shownEdges.push(...list);
       }
+    }
+    if (view.hoverEdge >= 0 && !view.moving) {        // связь под курсором — толще: по нажатию камера едет по ней
+      ctx.globalAlpha = 1;
+      strokeEdges(diagram, [view.hoverEdge], 2.5 * px, traceEdge);
+      if (level === 3) edgeEnds(diagram, [view.hoverEdge], px);
     }
 
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);           // названия областей — в экранных пикселях
@@ -1609,7 +1626,7 @@ function gesture() {
   gestureTimer = setTimeout(() => {
     view.moving = false;
     view.hover = pointer.inside ? tableAt(pointer.x, pointer.y) : -1;   // под курсором после жеста — уже другая карточка
-    canvas.classList.toggle('over-table', view.hover >= 0);
+    canvas.classList.toggle('pointing', view.hover >= 0);
     if (pointer.inside) hoverAt(pointer.x, pointer.y, view.hover);
     requestDraw();
   }, GESTURE_REST_MS);
@@ -1637,6 +1654,7 @@ function fitZoom() {
   return Math.min(1, (view.width - 2 * EDGE_INSET) / w, (view.height - fitTop - BOTTOM_INSET) / h);
 }
 function fit() {
+  stopFlight();
   view.fitted = true;
   if (view.width <= 2 * EDGE_INSET || view.height <= fitTop + BOTTOM_INSET) return;   // окно ещё без размера
   const [w, h] = view.diagram.size;
@@ -1653,6 +1671,7 @@ function keepInView() {                               // диаграмму не
   view.ty = Math.min(view.height - keepY, Math.max(keepY - shownH, view.ty));
 }
 function pan(dx, dy) {
+  stopFlight();
   view.fitted = false;
   view.tx += dx;
   view.ty += dy;
@@ -1661,6 +1680,7 @@ function pan(dx, dy) {
 }
 function zoomAt(x, y, factor) {                       // масштаб к точке окна (x, y): она остаётся на месте
   const next = Math.min(ZOOM_MAX, Math.max(view.fitZoom * 0.5, view.zoom * factor));
+  stopFlight();
   view.fitted = false;
   view.tx = x - (x - view.tx) * (next / view.zoom);
   view.ty = y - (y - view.ty) * (next / view.zoom);
@@ -1680,26 +1700,75 @@ function tableAt(x, y) {
   }
   return -1;
 }
-function showTable(index) {
-  const t = view.diagram.tables[index];
-  select(index);
-  view.fitted = false;
-  // свободное место: колонка описания справа уже вычтена из холста; в узком окне она лежит снизу поверх схемы
+function freeHeight() {                              // высота свободного места: в узком окне описание лежит снизу поверх схемы
   const sheet = details.getBoundingClientRect().top > 0;
-  const freeWidth = view.width;
-  const freeHeight = view.height - (sheet ? details.offsetHeight + BOTTOM_INSET : 0);
-  // масштаб, при котором столбцы читаются; высокая таблица встаёт верхом к верху окна
-  view.zoom = Math.min(1, Math.max(READ_MIN_PX / FONT.column, (freeHeight - topInset - 2 * EDGE_INSET) / t.h));
-  view.tx = freeWidth / 2 - (t.x + CARD.width / 2) * view.zoom;
-  view.ty = topInset + (freeHeight - topInset) / 2 - (t.y + t.h / 2) * view.zoom;
-  if (t.h * view.zoom > freeHeight - topInset - EDGE_INSET) view.ty = topInset + EDGE_INSET - t.y * view.zoom;
+  return view.height - (sheet ? details.offsetHeight + BOTTOM_INSET : 0);
+}
+function placeOn(t, zoom) {                           // сдвиг, при котором таблица t стоит посередине свободного места
+  const free = freeHeight();                          // колонка описания справа уже вычтена из холста
+  const tx = view.width / 2 - (t.x + CARD.width / 2) * zoom;
+  if (t.h * zoom > free - topInset - EDGE_INSET) return [tx, topInset + EDGE_INSET - t.y * zoom];   // высокая — верхом к верху
+  return [tx, topInset + (free - topInset) / 2 - (t.y + t.h / 2) * zoom];
+}
+function showTable(index) {                           // выбрать таблицу и приблизить её до читаемых столбцов
+  const t = view.diagram.tables[index];
+  stopFlight();
+  view.fitted = false;
+  select(index);
+  view.zoom = Math.min(1, Math.max(READ_MIN_PX / FONT.column, (freeHeight() - topInset - 2 * EDGE_INSET) / t.h));
+  [view.tx, view.ty] = placeOn(t, view.zoom);
   requestDraw();
+}
+// Переход по связи: камера едет к таблице при том же масштабе, чтобы было видно, откуда и куда. Свой жест её
+// останавливает; без движения в системе — сразу на месте.
+const REDUCED_MOTION = matchMedia('(prefers-reduced-motion: reduce)');
+const easeInOut = (k) => (k < 0.5 ? 4 * k * k * k : 1 - Math.pow(2 - 2 * k, 3) / 2);
+let flight = 0;
+function stopFlight() {
+  cancelAnimationFrame(flight);
+  flight = 0;
+}
+function flyTo(index) {
+  stopFlight();
+  view.fitted = false;
+  select(index);
+  const [toX, toY] = placeOn(view.diagram.tables[index], view.zoom);
+  const fromX = view.tx, fromY = view.ty, start = performance.now();
+  const step = (now) => {
+    const k = REDUCED_MOTION.matches ? 1 : Math.min(1, (now - start) / FLIGHT_MS), e = easeInOut(k);
+    view.tx = fromX + (toX - fromX) * e;
+    view.ty = fromY + (toY - fromY) * e;
+    gesture();
+    requestDraw();
+    flight = k < 1 ? requestAnimationFrame(step) : 0;
+  };
+  flight = requestAnimationFrame(step);
 }
 
 // ---------- выбор таблицы и панель описания ----------
 const details = document.getElementById('details');
+// Откуда пришли: каждая смена одной выбранной таблицы на другую — шаг, как в браузере. Снятие выбора путь забывает.
+const trail = [];
+let retracing = false;                                // шаг назад сам в путь не пишется
+function rememberSelected() {
+  if (view.selected < 0 || retracing) return;
+  trail.push({ code: view.diagram.code, id: view.diagram.tables[view.selected].id });
+  if (trail.length > TRAIL_LIMIT) trail.shift();
+}
+function goBack() {
+  const step = trail.pop();
+  if (!step) return;
+  retracing = true;
+  if (step.code === view.diagram.code) flyTo(view.diagram.indexById.get(step.id));
+  else {
+    switchDiagram(step.code);
+    showTable(view.diagram.indexById.get(step.id));
+  }
+  retracing = false;
+}
 function select(index) {                              // выбор открывает панель описания, снятие выбора закрывает
   if (index === view.selected) return;
+  if (index < 0) trail.length = 0; else rememberSelected();
   view.selected = index;
   showDetails();
   writeAddress(false);
@@ -1876,8 +1945,13 @@ function sectionTitle(node, label, count) {           // название раз
 }
 function showDetails() {
   details.hidden = view.selected < 0;
-  // колонка открылась или закрылась — CSS поменял ширину холста; вид остаётся на месте, слева
-  if (canvas.clientWidth !== view.width) resize();
+  // колонка открылась или закрылась — CSS поменял ширину холста; вид остаётся на месте, слева, и «весь вид» тоже
+  // не вписывается заново: иначе нажатие на таблицу в обзоре отодвигало бы всю схему
+  if (canvas.clientWidth !== view.width) {
+    view.fitted = false;
+    resize();
+  }
+  document.getElementById('details-back').hidden = trail.length === 0;
   if (details.hidden) return;
   const id = view.diagram.tables[view.selected].id;
   const table = TABLES[id];
@@ -1913,11 +1987,24 @@ function showDetails() {
   incomingTitle.hidden = incoming.hidden = table.incoming.size === 0;
   document.getElementById('details-body').scrollTop = 0;
 }
-function goToTable(id) {                              // переход к таблице: в этой диаграмме, а если её тут нет — в обзоре
-  if (!view.diagram.indexById.has(id)) switchDiagram(DATA.diagrams[0].code);
+function goToTable(id) {                              // переход по связи: в этой диаграмме камера едет к таблице,
+  if (view.diagram.indexById.has(id)) {               // а если таблицы тут нет — обзор, сразу на ней
+    flyTo(view.diagram.indexById.get(id));
+    return;
+  }
+  rememberSelected();                                 // смена диаграммы снимает выбор: шаг пишется до неё
+  switchDiagram(DATA.diagrams[0].code);
   showTable(view.diagram.indexById.get(id));
 }
 document.getElementById('details-close').addEventListener('click', () => select(-1));
+document.getElementById('details-back').addEventListener('click', goBack);
+document.addEventListener('keydown', (event) => {     // Backspace — назад по пройденным связям
+  if (event.key !== 'Backspace' || event.metaKey || event.ctrlKey || event.altKey) return;
+  const typing = event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement || event.target.isContentEditable;
+  if (typing || trail.length === 0) return;
+  event.preventDefault();
+  goBack();
+});
 
 // ---------- подсказка столбца ----------
 // Появляется через TIP_DELAY_MS над одной строкой и стоит у карточки, а не бежит за курсором: при движении не мигает.
@@ -1940,32 +2027,72 @@ function updateHoverRow(hit) {                        // строка под к�
   view.hoverRow = hit;
   requestDraw();
 }
-function updateTip(hit) {
-  const index = hit ? hit.index : -1, row = hit ? hit.row : -1;
-  const t = hit ? view.diagram.tables[index] : null;
-  const column = hit ? t.columns[row] : null;
-  const key = column && column[3] ? index + ':' + row : '';
+function setTip(key, name, note, place) {             // одна подсказка на холсте: key '' прячет, place(w, h) — её [x, y]
   if (key === tipKey) return;
   clearTimeout(tipTimer);
   tipKey = key;
   if (key === '') { tip.hidden = true; return; }
   const show = () => {
-    document.getElementById('tip-name').textContent = column[0];
-    document.getElementById('tip-note').textContent = column[3];
+    document.getElementById('tip-name').textContent = name;
+    document.getElementById('tip-note').textContent = note;
     tip.hidden = false;
-    const [left, rowTop] = toScreen(t.x, t.y + CARD.head + row * CARD.row), right = left + CARD.width * view.zoom;
-    let tipX = right + 8;                             // справа от карточки; не помещается — слева; иначе у края окна
-    if (tipX + tip.offsetWidth > view.width - 8) tipX = left - 8 - tip.offsetWidth;
-    tip.style.left = Math.max(8, Math.min(tipX, view.width - 8 - tip.offsetWidth)) + 'px';
-    tip.style.top = Math.max(8, Math.min(rowTop, view.height - 8 - tip.offsetHeight)) + 'px';
+    const [x, y] = place(tip.offsetWidth, tip.offsetHeight);
+    tip.style.left = Math.max(8, Math.min(x, view.width - 8 - tip.offsetWidth)) + 'px';
+    tip.style.top = Math.max(8, Math.min(y, view.height - 8 - tip.offsetHeight)) + 'px';
   };
   if (tip.hidden) tipTimer = setTimeout(show, TIP_DELAY_MS); else show();
 }
+function columnTip(hit) {                             // описание столбца — у карточки, на высоте строки
+  const t = hit ? view.diagram.tables[hit.index] : null, column = hit ? t.columns[hit.row] : null;
+  if (!column || !column[3]) { setTip('', '', '', null); return; }
+  setTip(hit.index + ':' + hit.row, column[0], column[3], (w) => {
+    const [left, rowTop] = toScreen(t.x, t.y + CARD.head + hit.row * CARD.row), right = left + CARD.width * view.zoom;
+    return [right + 8 + w > view.width - 8 ? left - 8 - w : right + 8, rowTop];   // справа от карточки; не помещается — слева
+  });
+}
+function edgeTip(index, target) {                     // у связи: какие столбцы она соединяет и куда ведёт нажатие
+  const d = view.diagram, e = d.edges[index];
+  const end = (i, c) => `${TABLES[d.tables[i].id].name}.${d.tables[i].columns[c][0]}`;
+  setTip(`edge:${index}:${target}`, `${end(e.a, e.ac)} → ${end(e.b, e.bc)}`,
+    `${TEXT.goTo} ${TABLES[d.tables[target].id].name}`, () => [pointer.x + 12, pointer.y + 16]);
+}
 
-function hoverAt(x, y, index) {                       // строка под курсором: подсказка и подсветка её связей
-  const hit = rowAt(x, y, index);
-  updateTip(hit);
+// ---------- связь под курсором ----------
+function segmentDistance(x, y, ax, ay, bx, by) {      // от точки до отрезка
+  const dx = bx - ax, dy = by - ay, length = dx * dx + dy * dy;
+  const k = length ? Math.max(0, Math.min(1, ((x - ax) * dx + (y - ay) * dy) / length)) : 0;
+  return Math.hypot(x - ax - k * dx, y - ay - k * dy);
+}
+function edgeAt(x, y) {                               // ближайшая к точке окна нарисованная связь, или -1
+  const wx = (x - view.tx) / view.zoom, wy = (y - view.ty) / view.zoom, reach = EDGE_HIT_PX / view.zoom;
+  let found = -1, nearest = reach;
+  for (const index of shownEdges) {
+    const e = view.diagram.edges[index], p = e.path;
+    if (wx < e.minX - reach || wx > e.maxX + reach || wy < e.minY - reach || wy > e.maxY + reach) continue;
+    for (let i = 0; i + 3 < p.length; i += 2) {
+      const distance = segmentDistance(wx, wy, p[i], p[i + 1], p[i + 2], p[i + 3]);
+      if (distance < nearest) { nearest = distance; found = index; }
+    }
+  }
+  return found;
+}
+function edgeTarget(index, x, y) {                    // куда ведёт связь: от выбранной таблицы — на другой конец,
+  const d = view.diagram, e = d.edges[index];         // иначе — на конец дальше от точки нажатия
+  if (view.selected === e.a) return e.b;
+  if (view.selected === e.b) return e.a;
+  const away = (i) => {
+    const t = d.tables[i], [cx, cy] = toScreen(t.x + CARD.width / 2, t.y + t.h / 2);
+    return Math.hypot(cx - x, cy - y);
+  };
+  return away(e.a) >= away(e.b) ? e.a : e.b;
+}
+
+function hoverAt(x, y, index) {                       // под курсором строка (подсказка, её связи) или связь (переход)
+  const hit = rowAt(x, y, index), edge = index < 0 ? edgeAt(x, y) : -1;
   updateHoverRow(hit);
+  if (edge !== view.hoverEdge) { view.hoverEdge = edge; requestDraw(); }
+  canvas.classList.toggle('pointing', index >= 0 || edge >= 0);
+  if (edge >= 0) edgeTip(edge, edgeTarget(edge, x, y)); else columnTip(hit);
 }
 
 // ---------- мышь и трекпад ----------
@@ -1989,7 +2116,7 @@ canvas.addEventListener('pointermove', (event) => {
     return;
   }
   const over = tableAt(event.clientX, event.clientY);
-  canvas.classList.toggle('over-table', over >= 0);
+  canvas.classList.toggle('pointing', over >= 0);
   if (over !== view.hover) { view.hover = over; requestDraw(); }
   if (!view.moving) hoverAt(event.clientX, event.clientY, over);
 });
@@ -2002,7 +2129,11 @@ canvas.addEventListener('pointerup', (event) => {
       select(view.hover);
       startComment({ table: t.id, column: hit ? t.columns[hit.row][0] : null }, pagePoint(event.clientX, event.clientY));
     }
-  } else if (!drag.moved) select(view.hover);         // нажатие: выбрать таблицу или снять выбор
+  } else if (!drag.moved) {                           // нажатие: таблица — выбрать, связь — перейти, пусто — снять выбор
+    const edge = view.hover < 0 ? edgeAt(event.clientX, event.clientY) : -1;
+    if (edge >= 0) goToTable(view.diagram.tables[edgeTarget(edge, event.clientX, event.clientY)].id);
+    else select(view.hover);
+  }
   requestDraw();
   drag = null;
   canvas.classList.remove('panning');
@@ -2012,7 +2143,7 @@ canvas.addEventListener('pointerleave', () => {
   pointer.inside = false;
   hideTip();
   updateHoverRow(null);
-  if (view.hover !== -1) { view.hover = -1; requestDraw(); }
+  if (view.hover !== -1 || view.hoverEdge !== -1) { view.hover = view.hoverEdge = -1; requestDraw(); }
 });
 canvas.addEventListener('dblclick', (event) => {      // двойное нажатие — приблизить таблицу до читаемых столбцов
   const index = tableAt(event.clientX, event.clientY);
@@ -2211,7 +2342,7 @@ function openDiagram(code) {
   if (view.diagram === diagram) return;
   prepare(diagram);
   view.diagram = diagram;
-  view.hover = view.selected = -1;
+  view.hover = view.selected = view.hoverEdge = -1;
   view.hoverRow = null;
   showDetails();
   hideTip();
