@@ -26,6 +26,7 @@
     --radius-area: 12px;
     --control-height: 32px;
     --icon-size: 16px;
+    --key-width: 24px;                 /* колонка PK / FK у столбцов в панели описания */
     --search-width: 360px;             /* поиск: имя таблицы и её модуль без многоточия */
     --menu-width: 264px;
     --details-width: 360px;
@@ -200,14 +201,20 @@
   h3 { margin: var(--space-4) 0 var(--space-1); font-size: 12px; line-height: 16px; font-weight: 500; color: var(--color-text-muted); }
   #details p { margin: 0; }
   #details ul { margin: 0; }
-  .meta { display: flex; align-items: center; gap: var(--space-2); margin-top: var(--space-1); color: var(--color-text-muted); }
-  .muted { color: var(--color-text-muted); }
-  .column { padding: var(--space-2) 0; }
-  .column-head { display: flex; align-items: baseline; gap: var(--space-2); }
-  .column-name { flex: 1; min-width: 0; font-weight: 500; }
+  #details-note { color: var(--color-text-muted); }
+  .meta { margin-top: var(--space-1); font-size: 12px; line-height: 16px; color: var(--color-text-muted); }
+  /* Столбец — одна строка, как свойство в Linear: ключ, имя, тип; под ними описание и куда ссылается.
+     «?» после типа — столбец может быть пустым, как на схеме. */
+  .column {
+    display: grid; grid-template-columns: var(--key-width) minmax(0, 1fr) auto; column-gap: var(--space-2);
+    align-items: baseline; padding: var(--space-1) 0;
+  }
+  .column-key { font-size: 12px; font-weight: 600; color: var(--color-text-muted); }
+  .column-name { min-width: 0; font-weight: 500; }
   .column-name.key { font-weight: 600; }
-  .column-type { flex: none; font-size: 12px; color: var(--color-text-muted); }
-  .small { font-size: 12px; line-height: 16px; }
+  .column-type { font-size: 12px; color: var(--color-text-muted); text-align: right; }
+  .column-note, .column .link { grid-column: 2 / -1; font-size: 12px; line-height: 16px; }
+  .column-note { color: var(--color-text-muted); }
   .link {
     display: block;
     padding: 0;
@@ -221,7 +228,8 @@
   }
   .link:hover { text-decoration: underline; }
   .link:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
-  #details-incoming { margin: 0 calc(-1 * var(--space-2)); }
+  #details #details-incoming { margin: 0 calc(-1 * var(--space-2)); }   /* подсветка строк выходит за поле; «#details ul» иначе главнее */
+  #details-incoming .control { padding-left: calc(var(--key-width) + 2 * var(--space-2)); }   /* имена — на линии имён столбцов */
   /* подсказка столбца на холсте */
   #tip {
     position: fixed;
@@ -292,9 +300,9 @@
     <p id="details-title"></p>
     <p id="details-note"></p>
     <p id="details-meta" class="meta"></p>
-    <h3 data-text="columns"></h3>
+    <h3 id="details-columns-title"></h3>
     <ul id="details-columns"></ul>
-    <h3 id="details-incoming-title" data-text="incoming"></h3>
+    <h3 id="details-incoming-title"></h3>
     <ul id="details-incoming"></ul>
   </div>
 </aside>
@@ -842,7 +850,7 @@ const STRINGS = {
     canvas: 'Database diagram', toolbar: 'Diagram tools', statusMenu: 'Table status', search: 'Table', searchHint: 'Find a table  /',
     searchLabel: 'Find a table', zoom: 'Zoom', zoomOut: 'Zoom out', zoomIn: 'Zoom in', fit: 'Fit',
     details: 'Table details', comment: 'Comment', copyLink: 'Copy link', copied: 'Link copied', close: 'Close',
-    columns: 'Columns', incoming: 'Referenced by', notFound: 'Not found', required: 'required',
+    columns: 'Columns', incoming: 'Referenced by', notFound: 'Not found',
     allTables: 'All tables', failure: 'The diagram did not open.',
     modeKeys: 'Keys only', modeKeysHint: 'Keys only: primary keys and the columns of references', minimap: 'Diagram map',
     exportMenu: 'Export schema', copy: { dbml: 'Copy DBML', sql: 'Copy SQL' }, save: { dbml: 'Download DBML', sql: 'Download SQL' },
@@ -856,7 +864,7 @@ const STRINGS = {
     canvas: 'Схема базы', toolbar: 'Инструменты схемы', statusMenu: 'Статус таблиц', search: 'Таблица', searchHint: 'Поиск таблицы  /',
     searchLabel: 'Поиск таблицы', zoom: 'Масштаб', zoomOut: 'Уменьшить', zoomIn: 'Увеличить', fit: 'Весь вид',
     details: 'Описание таблицы', comment: 'Комментарий', copyLink: 'Скопировать ссылку', copied: 'Ссылка скопирована', close: 'Закрыть',
-    columns: 'Столбцы', incoming: 'Ссылаются сюда', notFound: 'Не найдено', required: 'обязательный',
+    columns: 'Столбцы', incoming: 'Ссылаются сюда', notFound: 'Не найдено',
     allTables: 'Все таблицы', failure: 'Схема не открылась.',
     modeKeys: 'Только ключи', modeKeysHint: 'Только ключи: первичные ключи и столбцы связей', minimap: 'Карта схемы',
     exportMenu: 'Выгрузка схемы', copy: { dbml: 'Скопировать DBML', sql: 'Скопировать SQL' }, save: { dbml: 'Скачать DBML', sql: 'Скачать SQL' },
@@ -1760,14 +1768,13 @@ function showDetails() {
   document.getElementById('details-meta').textContent = HAS_STATUS ? `${moduleName} · ${STATUS_NAME[table.status]}` : moduleName;
   const columns = document.getElementById('details-columns');
   columns.replaceChildren();
+  document.getElementById('details-columns-title').textContent = `${TEXT.columns} · ${table.columns.length}`;
   for (const [name, type, flags, note, links] of table.columns) {
     const item = make('li', 'column');
-    const head = make('div', 'column-head');
-    head.append(make('span', flags & PK ? 'column-name key' : 'column-name', name), make('span', 'column-type', type));
-    item.append(head);
-    const marks = [flags & PK ? 'PK' : '', flags & FK ? 'FK' : '', flags & NULLABLE ? '' : TEXT.required].filter(Boolean);
-    if (marks.length > 0) item.append(make('div', 'small muted', marks.join(' · ')));
-    if (note) item.append(make('div', '', note));
+    item.append(make('span', 'column-key', flags & PK ? 'PK' : flags & FK ? 'FK' : ''),
+      make('span', flags & PK ? 'column-name key' : 'column-name', name),
+      make('span', 'column-type', flags & NULLABLE ? `${type}?` : type));
+    if (note) item.append(make('span', 'column-note', note));
     for (const [target, column] of links || []) item.append(tableLink(target, `→ ${target}.${column}`));
     columns.append(item);
   }
@@ -1780,7 +1787,9 @@ function showDetails() {
     button.addEventListener('click', () => goToTable(source));
     incoming.append(listItem(button));
   }
-  document.getElementById('details-incoming-title').hidden = incoming.hidden = table.incoming.size === 0;
+  const incomingTitle = document.getElementById('details-incoming-title');
+  incomingTitle.textContent = `${TEXT.incoming} · ${table.incoming.size}`;
+  incomingTitle.hidden = incoming.hidden = table.incoming.size === 0;
   document.getElementById('details-body').scrollTop = 0;
 }
 function goToTable(id) {                              // переход к таблице: в этой диаграмме, а если её тут нет — в обзоре
