@@ -1,4 +1,3 @@
-#!/usr/bin/env node
 // Checks a schema.json with the same code the viewer runs, and optionally builds the page.
 //   node check.mjs schema.json                       → summary, or every problem and exit code 1
 //   node check.mjs schema.json -o diagram.html       → page to open from disk
