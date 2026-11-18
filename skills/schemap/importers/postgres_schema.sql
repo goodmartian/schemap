@@ -1,4 +1,4 @@
--- A live Postgres database (11+) → schema.json for build_diagram.py, as one line of JSON.
+-- A live Postgres database (11+) → schema.json for the schemap viewer, as one line of JSON.
 --   psql "$DATABASE_URL" -X -A -t -f postgres_schema.sql -o schema.json
 -- Read-only: it only selects from the system catalogs. Every schema except the system ones becomes a module;
 -- drop the modules you do not want from schema.json afterwards (and their tables and references).

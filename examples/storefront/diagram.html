@@ -1,13 +1,10 @@
 <!doctype html>
-<html lang="en">
-<head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="color-scheme" content="light dark">
-<title>Storefront schema</title>
 <style>
-  /* Страница без своего каркаса <html>/<head>/<body>: так её публикует claude.ai как артефакт, а для файла
-     каркас добавляет build_diagram.py. Вид — по Linear: нейтральный фон, тонкие рамки, один шрифт без моноширного. */
+  /* Просмотрщик без своего каркаса <html>/<head>/<body> и без <title>: так его публикует claude.ai как артефакт
+     (название даётся при публикации). Для файла перед ним ставится <!doctype html>, а схема дописывается в конец:
+     <script id="schema" type="application/json">…</script>. Вид — по Linear: нейтральный фон, тонкие рамки, один шрифт без моноширного. */
   :root {
     --color-background: #f4f4f5;
     --color-surface: #ffffff;
@@ -232,10 +229,8 @@
   }
   #tip-name { font-weight: 600; }
   #failure { position: fixed; inset: 0; display: grid; place-content: center; gap: var(--space-1); margin: 0; padding: var(--space-4); text-align: center; }
-  #failure-reason { color: var(--color-text-muted); }
+  #failure-reason { color: var(--color-text-muted); white-space: pre-line; }   /* каждая проблема схемы — своей строкой */
 </style>
-</head>
-<body>
 <canvas id="canvas" role="img" data-label="canvas"></canvas>
 
 <div id="top-left">
@@ -300,17 +295,444 @@
 
 <p id="failure" hidden><span id="failure-text"></span><span id="failure-reason"></span></p>
 
-<script id="diagram-data" type="application/json">{"lang":"en","card":{"width":260,"head":48,"row":24,"areaTop":48,"areaPad":24,"areaGap":128},"modules":[{"code":"accounts","name":"Accounts and teams","dark":"#42e0c0","light":"#0f766e"},{"code":"catalog","name":"Catalog","dark":"#8eb7ff","light":"#2563eb"},{"code":"orders","name":"Orders and carts","dark":"#ffe374","light":"#a16207"},{"code":"payments","name":"Payments","dark":"#9ef07a","light":"#4d7c0f"},{"code":"shipping","name":"Shipping","dark":"#ff9f74","light":"#c2410c"},{"code":"support","name":"Support and returns","dark":"#c05dcf","light":"#a21caf"},{"code":"marketing","name":"Marketing and reviews","dark":"#ff6363","light":"#dc2626"},{"code":"analytics","name":"Analytics","dark":"#8a61f5","light":"#6d28d9"}],"tables":{"accounts.users":{"name":"users","slug":"accounts-users","module":"accounts","status":"same","title":"Customers and staff","note":"","columns":[["id","uuid",1,""],["email","varchar(320)",0,"Sign-in address, unique"],["full_name","text",4,""],["phone","varchar(32)",4,""],["role","text",0,"customer, staff or admin"],["created_at","timestamptz",0,""],["deleted_at","timestamptz",4,"Soft delete"]]},"accounts.sessions":{"name":"sessions","slug":"accounts-sessions","module":"accounts","status":"same","title":"Sign-in sessions","note":"","columns":[["id","uuid",1,""],["user_id","uuid",2,"",[["accounts.users","id"]]],["device","text",4,""],["expires_at","timestamptz",0,""],["created_at","timestamptz",0,""]]},"accounts.password_resets":{"name":"password_resets","slug":"accounts-password-resets","module":"accounts","status":"same","title":"Password reset links","note":"","columns":[["id","uuid",1,""],["user_id","uuid",2,"",[["accounts.users","id"]]],["token_hash","bytea",0,"Only the hash is stored"],["expires_at","timestamptz",0,""],["used_at","timestamptz",4,""]]},"accounts.teams":{"name":"teams","slug":"accounts-teams","module":"accounts","status":"same","title":"Seller teams","note":"","columns":[["id","uuid",1,""],["name","text",0,""],["owner_id","uuid",2,"",[["accounts.users","id"]]],["plan","text",0,"free, pro or business"],["created_at","timestamptz",0,""]]},"accounts.team_members":{"name":"team_members","slug":"accounts-team-members","module":"accounts","status":"same","title":"Team members","note":"","columns":[["team_id","uuid",3,"",[["accounts.teams","id"]]],["user_id","uuid",3,"",[["accounts.users","id"]]],["role","text",0,"owner, admin or editor"],["invited_at","timestamptz",0,""]]},"accounts.api_tokens":{"name":"api_tokens","slug":"accounts-api-tokens","module":"accounts","status":"new","title":"API tokens","note":"Lets sellers connect their own tools","columns":[["id","uuid",1,""],["team_id","uuid",2,"",[["accounts.teams","id"]]],["name","text",0,""],["token_hash","bytea",0,""],["last_used_at","timestamptz",4,""],["revoked_at","timestamptz",4,""]]},"accounts.audit_log":{"name":"audit_log","slug":"accounts-audit-log","module":"accounts","status":"same","title":"Audit log","note":"","columns":[["id","bigint",1,""],["actor_id","uuid",6,"",[["accounts.users","id"]]],["action","text",0,""],["subject_type","text",0,""],["subject_id","uuid",0,""],["created_at","timestamptz",0,""]]},"catalog.brands":{"name":"brands","slug":"catalog-brands","module":"catalog","status":"same","title":"Makers","note":"","columns":[["id","integer",1,""],["name","text",0,""],["slug","text",0,"Used in URLs"]]},"catalog.categories":{"name":"categories","slug":"catalog-categories","module":"catalog","status":"same","title":"Category tree","note":"","columns":[["id","integer",1,""],["parent_id","integer",6,"Empty for a top-level category",[["catalog.categories","id"]]],["name","text",0,""],["slug","text",0,""],["position","integer",0,""]]},"catalog.products":{"name":"products","slug":"catalog-products","module":"catalog","status":"changed","title":"Items for sale","note":"One product, sold in one or more variants","columns":[["id","uuid",1,""],["team_id","uuid",2,"The seller",[["accounts.teams","id"]]],["category_id","integer",2,"",[["catalog.categories","id"]]],["brand_id","integer",6,"",[["catalog.brands","id"]]],["title","text",0,""],["description","text",4,""],["status","text",0,"draft, active or archived"],["created_at","timestamptz",0,""],["updated_at","timestamptz",0,""]]},"catalog.product_variants":{"name":"product_variants","slug":"catalog-product-variants","module":"catalog","status":"same","title":"Sizes and colours","note":"","columns":[["id","uuid",1,""],["product_id","uuid",2,"",[["catalog.products","id"]]],["sku","text",0,"Seller's stock code"],["size","text",4,""],["color","text",4,""],["price","numeric(12,2)",0,""],["compare_at_price","numeric(12,2)",4,"Old price shown crossed out"],["weight_grams","integer",4,""]]},"catalog.product_images":{"name":"product_images","slug":"catalog-product-images","module":"catalog","status":"same","title":"Product photos","note":"","columns":[["product_id","uuid",3,"",[["catalog.products","id"]]],["position","integer",1,""],["url","text",0,""],["alt_text","text",4,""]]},"catalog.tags":{"name":"tags","slug":"catalog-tags","module":"catalog","status":"same","title":"Search tags","note":"","columns":[["id","integer",1,""],["name","text",0,""]]},"catalog.product_tags":{"name":"product_tags","slug":"catalog-product-tags","module":"catalog","status":"same","title":"Product tags","note":"","columns":[["product_id","uuid",3,"",[["catalog.products","id"]]],["tag_id","integer",3,"",[["catalog.tags","id"]]]]},"catalog.collections":{"name":"collections","slug":"catalog-collections","module":"catalog","status":"same","title":"Curated sets","note":"Hand-picked sets for the home page","columns":[["id","integer",1,""],["title","text",0,""],["starts_at","timestamptz",4,""],["ends_at","timestamptz",4,""]]},"catalog.collection_products":{"name":"collection_products","slug":"catalog-collection-products","module":"catalog","status":"same","title":"Products in collections","note":"","columns":[["collection_id","integer",3,"",[["catalog.collections","id"]]],["product_id","uuid",3,"",[["catalog.products","id"]]],["position","integer",0,""]]},"catalog.warehouses":{"name":"warehouses","slug":"catalog-warehouses","module":"catalog","status":"same","title":"Stock locations","note":"","columns":[["id","integer",1,""],["team_id","uuid",2,"",[["accounts.teams","id"]]],["name","text",0,""],["address_id","uuid",2,"",[["shipping.addresses","id"]]]]},"catalog.inventory_levels":{"name":"inventory_levels","slug":"catalog-inventory-levels","module":"catalog","status":"changed","title":"Stock levels","note":"","columns":[["variant_id","uuid",3,"",[["catalog.product_variants","id"]]],["warehouse_id","integer",3,"",[["catalog.warehouses","id"]]],["on_hand","integer",0,""],["reserved","integer",0,"Held by unpaid orders"]]},"orders.carts":{"name":"carts","slug":"orders-carts","module":"orders","status":"same","title":"Shopping carts","note":"","columns":[["id","uuid",1,""],["user_id","uuid",6,"Empty for a guest",[["accounts.users","id"]]],["created_at","timestamptz",0,""],["updated_at","timestamptz",0,""]]},"orders.cart_items":{"name":"cart_items","slug":"orders-cart-items","module":"orders","status":"same","title":"Cart items","note":"","columns":[["cart_id","uuid",3,"",[["orders.carts","id"]]],["variant_id","uuid",3,"",[["catalog.product_variants","id"]]],["quantity","integer",0,""]]},"orders.orders":{"name":"orders","slug":"orders-orders","module":"orders","status":"changed","title":"Customer orders","note":"One checkout with one seller","columns":[["id","uuid",1,""],["number","bigint",0,"Shown to the customer"],["user_id","uuid",2,"",[["accounts.users","id"]]],["team_id","uuid",2,"",[["accounts.teams","id"]]],["status","text",0,"placed, paid, shipped, delivered or cancelled"],["shipping_address_id","uuid",2,"",[["shipping.addresses","id"]]],["subtotal","numeric(12,2)",0,""],["discount","numeric(12,2)",0,""],["total","numeric(12,2)",0,""],["currency","char(3)",0,""],["placed_at","timestamptz",0,""]]},"orders.order_items":{"name":"order_items","slug":"orders-order-items","module":"orders","status":"same","title":"Order items","note":"","columns":[["order_id","uuid",3,"",[["orders.orders","id"]]],["variant_id","uuid",3,"",[["catalog.product_variants","id"]]],["quantity","integer",0,""],["unit_price","numeric(12,2)",0,"Price at the moment of purchase"]]},"orders.order_status_events":{"name":"order_status_events","slug":"orders-order-status-events","module":"orders","status":"same","title":"Order history","note":"","columns":[["id","bigint",1,""],["order_id","uuid",2,"",[["orders.orders","id"]]],["from_status","text",4,""],["to_status","text",0,""],["actor_id","uuid",6,"",[["accounts.users","id"]]],["created_at","timestamptz",0,""]]},"orders.discounts":{"name":"discounts","slug":"orders-discounts","module":"orders","status":"same","title":"Discount codes","note":"","columns":[["id","integer",1,""],["team_id","uuid",2,"",[["accounts.teams","id"]]],["code","text",0,""],["percent","integer",4,""],["amount","numeric(12,2)",4,""],["starts_at","timestamptz",0,""],["ends_at","timestamptz",4,""],["usage_limit","integer",4,""]]},"orders.discount_redemptions":{"name":"discount_redemptions","slug":"orders-discount-redemptions","module":"orders","status":"same","title":"Used discount codes","note":"","columns":[["discount_id","integer",3,"",[["orders.discounts","id"]]],["order_id","uuid",3,"",[["orders.orders","id"]]],["amount","numeric(12,2)",0,""]]},"orders.gift_cards":{"name":"gift_cards","slug":"orders-gift-cards","module":"orders","status":"new","title":"Gift cards","note":"","columns":[["id","uuid",1,""],["code_hash","bytea",0,""],["balance","numeric(12,2)",0,""],["currency","char(3)",0,""],["purchased_by","uuid",6,"",[["accounts.users","id"]]],["expires_at","timestamptz",4,""]]},"payments.payment_methods":{"name":"payment_methods","slug":"payments-payment-methods","module":"payments","status":"same","title":"Saved cards","note":"","columns":[["id","uuid",1,""],["user_id","uuid",2,"",[["accounts.users","id"]]],["provider","text",0,""],["provider_ref","text",0,"Token from the provider, never the card number"],["last4","char(4)",0,""],["expires_on","date",0,""]]},"payments.payments":{"name":"payments","slug":"payments-payments","module":"payments","status":"changed","title":"Card and gift card payments","note":"","columns":[["id","uuid",1,""],["order_id","uuid",2,"",[["orders.orders","id"]]],["method_id","uuid",6,"",[["payments.payment_methods","id"]]],["gift_card_id","uuid",6,"",[["orders.gift_cards","id"]]],["amount","numeric(12,2)",0,""],["status","text",0,"pending, captured or failed"],["captured_at","timestamptz",4,""]]},"payments.refunds":{"name":"refunds","slug":"payments-refunds","module":"payments","status":"same","title":"Money back","note":"","columns":[["id","uuid",1,""],["payment_id","uuid",2,"",[["payments.payments","id"]]],["return_id","uuid",6,"",[["support.returns","id"]]],["amount","numeric(12,2)",0,""],["reason","text",4,""],["created_at","timestamptz",0,""]]},"payments.invoices":{"name":"invoices","slug":"payments-invoices","module":"payments","status":"same","title":"Tax invoices","note":"","columns":[["id","uuid",1,""],["order_id","uuid",2,"",[["orders.orders","id"]]],["number","text",0,""],["issued_at","timestamptz",0,""],["pdf_url","text",4,""]]},"payments.invoice_lines":{"name":"invoice_lines","slug":"payments-invoice-lines","module":"payments","status":"same","title":"Invoice lines","note":"","columns":[["invoice_id","uuid",3,"",[["payments.invoices","id"]]],["line","integer",1,""],["description","text",0,""],["amount","numeric(12,2)",0,""],["tax_rate","numeric(5,2)",0,""]]},"payments.payouts":{"name":"payouts","slug":"payments-payouts","module":"payments","status":"new","title":"Payouts to sellers","note":"","columns":[["id","uuid",1,""],["team_id","uuid",2,"",[["accounts.teams","id"]]],["amount","numeric(12,2)",0,""],["fee","numeric(12,2)",0,"Marketplace commission"],["period_start","date",0,""],["period_end","date",0,""],["paid_at","timestamptz",4,""]]},"shipping.addresses":{"name":"addresses","slug":"shipping-addresses","module":"shipping","status":"same","title":"Delivery addresses","note":"","columns":[["id","uuid",1,""],["user_id","uuid",6,"",[["accounts.users","id"]]],["line1","text",0,""],["line2","text",4,""],["city","text",0,""],["postcode","text",0,""],["country","char(2)",0,""]]},"shipping.carriers":{"name":"carriers","slug":"shipping-carriers","module":"shipping","status":"same","title":"Delivery companies","note":"","columns":[["id","integer",1,""],["name","text",0,""],["tracking_url","text",0,"With {number} in place of the tracking number"]]},"shipping.shipping_rates":{"name":"shipping_rates","slug":"shipping-shipping-rates","module":"shipping","status":"same","title":"Shipping prices","note":"","columns":[["id","integer",1,""],["carrier_id","integer",2,"",[["shipping.carriers","id"]]],["country","char(2)",0,""],["max_weight_grams","integer",0,""],["price","numeric(12,2)",0,""]]},"shipping.shipments":{"name":"shipments","slug":"shipping-shipments","module":"shipping","status":"same","title":"Parcels","note":"","columns":[["id","uuid",1,""],["order_id","uuid",2,"",[["orders.orders","id"]]],["carrier_id","integer",2,"",[["shipping.carriers","id"]]],["tracking_number","text",4,""],["shipped_at","timestamptz",4,""],["delivered_at","timestamptz",4,""]]},"shipping.shipment_items":{"name":"shipment_items","slug":"shipping-shipment-items","module":"shipping","status":"same","title":"Items in a shipment","note":"","columns":[["shipment_id","uuid",3,"",[["shipping.shipments","id"]]],["variant_id","uuid",3,"",[["catalog.product_variants","id"]]],["quantity","integer",0,""]]},"shipping.tracking_events":{"name":"tracking_events","slug":"shipping-tracking-events","module":"shipping","status":"new","title":"Tracking events","note":"Received from the carrier","columns":[["id","bigint",1,""],["shipment_id","uuid",2,"",[["shipping.shipments","id"]]],["status","text",0,""],["location","text",4,""],["happened_at","timestamptz",0,""]]},"support.tickets":{"name":"tickets","slug":"support-tickets","module":"support","status":"same","title":"Support tickets","note":"","columns":[["id","uuid",1,""],["user_id","uuid",2,"",[["accounts.users","id"]]],["order_id","uuid",6,"",[["orders.orders","id"]]],["assignee_id","uuid",6,"",[["accounts.users","id"]]],["subject","text",0,""],["status","text",0,"open, waiting or closed"],["created_at","timestamptz",0,""]]},"support.ticket_messages":{"name":"ticket_messages","slug":"support-ticket-messages","module":"support","status":"same","title":"Ticket messages","note":"","columns":[["id","uuid",1,""],["ticket_id","uuid",2,"",[["support.tickets","id"]]],["author_id","uuid",2,"",[["accounts.users","id"]]],["body","text",0,""],["internal","boolean",0,"Seen by staff only"],["created_at","timestamptz",0,""]]},"support.returns":{"name":"returns","slug":"support-returns","module":"support","status":"new","title":"Return requests","note":"A customer sends items back","columns":[["id","uuid",1,""],["order_id","uuid",2,"",[["orders.orders","id"]]],["reason","text",0,""],["status","text",0,"requested, approved, received or refunded"],["requested_at","timestamptz",0,""]]},"support.return_items":{"name":"return_items","slug":"support-return-items","module":"support","status":"new","title":"Returned items","note":"","columns":[["return_id","uuid",3,"",[["support.returns","id"]]],["variant_id","uuid",3,"",[["catalog.product_variants","id"]]],["quantity","integer",0,""],["condition","text",4,"Checked at the warehouse"]]},"marketing.reviews":{"name":"reviews","slug":"marketing-reviews","module":"marketing","status":"same","title":"Product reviews","note":"","columns":[["id","uuid",1,""],["product_id","uuid",2,"",[["catalog.products","id"]]],["user_id","uuid",2,"",[["accounts.users","id"]]],["order_id","uuid",2,"Only buyers can review",[["orders.orders","id"]]],["rating","smallint",0,"1 to 5"],["body","text",4,""],["published_at","timestamptz",4,""]]},"marketing.review_votes":{"name":"review_votes","slug":"marketing-review-votes","module":"marketing","status":"same","title":"Helpful votes","note":"","columns":[["review_id","uuid",3,"",[["marketing.reviews","id"]]],["user_id","uuid",3,"",[["accounts.users","id"]]],["helpful","boolean",0,""]]},"marketing.wishlists":{"name":"wishlists","slug":"marketing-wishlists","module":"marketing","status":"same","title":"Saved for later","note":"","columns":[["user_id","uuid",3,"",[["accounts.users","id"]]],["variant_id","uuid",3,"",[["catalog.product_variants","id"]]],["added_at","timestamptz",0,""]]},"marketing.newsletter_subscriptions":{"name":"newsletter_subscriptions","slug":"marketing-newsletter-subscriptions","module":"marketing","status":"same","title":"Newsletter","note":"","columns":[["email","varchar(320)",1,""],["user_id","uuid",6,"",[["accounts.users","id"]]],["confirmed_at","timestamptz",4,""],["unsubscribed_at","timestamptz",4,""]]},"marketing.campaigns":{"name":"campaigns","slug":"marketing-campaigns","module":"marketing","status":"new","title":"Email campaigns","note":"","columns":[["id","uuid",1,""],["team_id","uuid",2,"",[["accounts.teams","id"]]],["subject","text",0,""],["collection_id","integer",6,"",[["catalog.collections","id"]]],["scheduled_at","timestamptz",4,""],["sent_at","timestamptz",4,""]]},"analytics.product_views_daily":{"name":"product_views_daily","slug":"analytics-product-views-daily","module":"analytics","status":"same","title":"Product views by day","note":"","columns":[["day","date",1,""],["product_id","uuid",3,"",[["catalog.products","id"]]],["views","integer",0,""],["unique_visitors","integer",0,""]]},"analytics.sales_daily":{"name":"sales_daily","slug":"analytics-sales-daily","module":"analytics","status":"same","title":"Sales by day","note":"","columns":[["day","date",1,""],["team_id","uuid",3,"",[["accounts.teams","id"]]],["orders","integer",0,""],["revenue","numeric(14,2)",0,""],["currency","char(3)",1,""]]}},"diagrams":[{"code":"overview","mode":"all","slug":"overview","name":"Storefront — overview","label":"Overview","module":null,"areas":[{"name":"Accounts and teams","module":"accounts","x":0,"y":0,"w":632,"h":840,"count":7},{"name":"Catalog","module":"catalog","x":760,"y":0,"w":956,"h":840,"count":11},{"name":"Orders and carts","module":"orders","x":1844,"y":0,"w":956,"h":840,"count":8},{"name":"Payments","module":"payments","x":0,"y":968,"w":632,"h":712,"count":6},{"name":"Shipping","module":"shipping","x":760,"y":968,"w":632,"h":712,"count":6},{"name":"Support and returns","module":"support","x":1520,"y":968,"w":632,"h":712,"count":4},{"name":"Marketing and reviews","module":"marketing","x":2280,"y":968,"w":632,"h":712,"count":5},{"name":"Analytics","module":"analytics","x":3040,"y":968,"w":308,"h":712,"count":2}],"tables":[{"id":"accounts.users","x":24,"y":48,"h":216},{"id":"accounts.sessions","x":24,"y":520,"h":168},{"id":"accounts.password_resets","x":348,"y":472,"h":168},{"id":"accounts.teams","x":348,"y":48,"h":168},{"id":"accounts.team_members","x":348,"y":672,"h":144},{"id":"accounts.api_tokens","x":348,"y":248,"h":192},{"id":"accounts.audit_log","x":24,"y":296,"h":192},{"id":"catalog.brands","x":784,"y":320,"h":120},{"id":"catalog.categories","x":1432,"y":48,"h":168},{"id":"catalog.products","x":1108,"y":48,"h":264},{"id":"catalog.product_variants","x":784,"y":48,"h":240},{"id":"catalog.product_images","x":1432,"y":600,"h":144},{"id":"catalog.tags","x":1108,"y":344,"h":96},{"id":"catalog.product_tags","x":784,"y":624,"h":96},{"id":"catalog.collections","x":1432,"y":248,"h":144},{"id":"catalog.collection_products","x":784,"y":472,"h":120},{"id":"catalog.warehouses","x":1432,"y":424,"h":144},{"id":"catalog.inventory_levels","x":1108,"y":472,"h":144},{"id":"orders.carts","x":2192,"y":48,"h":144},{"id":"orders.cart_items","x":2516,"y":320,"h":120},{"id":"orders.orders","x":1868,"y":48,"h":312},{"id":"orders.order_items","x":2192,"y":448,"h":144},{"id":"orders.order_status_events","x":2516,"y":472,"h":192},{"id":"orders.discounts","x":2516,"y":48,"h":240},{"id":"orders.discount_redemptions","x":1868,"y":392,"h":120},{"id":"orders.gift_cards","x":2192,"y":224,"h":192},{"id":"payments.payment_methods","x":348,"y":1016,"h":192},{"id":"payments.payments","x":24,"y":1216,"h":216},{"id":"payments.refunds","x":24,"y":1464,"h":192},{"id":"payments.invoices","x":24,"y":1016,"h":168},{"id":"payments.invoice_lines","x":348,"y":1240,"h":168},{"id":"payments.payouts","x":348,"y":1440,"h":216},{"id":"shipping.addresses","x":784,"y":1016,"h":216},{"id":"shipping.carriers","x":1108,"y":1016,"h":120},{"id":"shipping.shipping_rates","x":1108,"y":1392,"h":168},{"id":"shipping.shipments","x":1108,"y":1168,"h":192},{"id":"shipping.shipment_items","x":784,"y":1264,"h":120},{"id":"shipping.tracking_events","x":784,"y":1416,"h":168},{"id":"support.tickets","x":1868,"y":1016,"h":216},{"id":"support.ticket_messages","x":1868,"y":1264,"h":192},{"id":"support.returns","x":1544,"y":1016,"h":168},{"id":"support.return_items","x":1544,"y":1216,"h":144},{"id":"marketing.reviews","x":2304,"y":1016,"h":216},{"id":"marketing.review_votes","x":2304,"y":1264,"h":120},{"id":"marketing.wishlists","x":2304,"y":1416,"h":120},{"id":"marketing.newsletter_subscriptions","x":2628,"y":1240,"h":144},{"id":"marketing.campaigns","x":2628,"y":1016,"h":192},{"id":"analytics.product_views_daily","x":3064,"y":1016,"h":144},{"id":"analytics.sales_daily","x":3064,"y":1192,"h":168}],"refs":[[1,1,0,0],[2,1,0,0],[3,2,0,0],[4,0,3,0],[4,1,0,0],[5,1,3,0],[6,1,0,0],[8,1,8,0],[9,1,3,0],[9,2,8,0],[9,3,7,0],[10,1,9,0],[11,0,9,0],[13,0,9,0],[13,1,12,0],[15,0,14,0],[15,1,9,0],[16,1,3,0],[16,3,32,0],[17,0,10,0],[17,1,16,0],[18,1,0,0],[19,0,18,0],[19,1,10,0],[20,2,0,0],[20,3,3,0],[20,5,32,0],[21,0,20,0],[21,1,10,0],[22,1,20,0],[22,4,0,0],[23,1,3,0],[24,0,23,0],[24,1,20,0],[25,4,0,0],[26,1,0,0],[27,1,20,0],[27,2,26,0],[27,3,25,0],[28,1,27,0],[28,2,40,0],[29,1,20,0],[30,0,29,0],[31,1,3,0],[32,1,0,0],[34,1,33,0],[35,1,20,0],[35,2,33,0],[36,0,35,0],[36,1,10,0],[37,1,35,0],[38,1,0,0],[38,2,20,0],[38,3,0,0],[39,1,38,0],[39,2,0,0],[40,1,20,0],[41,0,40,0],[41,1,10,0],[42,1,9,0],[42,2,0,0],[42,3,20,0],[43,0,42,0],[43,1,0,0],[44,0,0,0],[44,1,10,0],[45,1,0,0],[46,1,3,0],[46,3,14,0],[47,1,9,0],[48,1,3,0]],"size":[3348,1680]},{"code":"accounts","mode":"all","slug":"accounts","name":"Storefront — Accounts and teams","label":"Accounts and teams","module":"accounts","areas":[{"name":"Accounts and teams","module":"accounts","x":0,"y":0,"w":632,"h":840,"count":7},{"name":"Catalog","module":"catalog","x":760,"y":0,"w":308,"h":248,"count":2},{"name":"Orders and carts","module":"orders","x":1196,"y":0,"w":308,"h":584,"count":5},{"name":"Payments","module":"payments","x":1632,"y":0,"w":308,"h":248,"count":2},{"name":"Shipping","module":"shipping","x":1632,"y":376,"w":308,"h":144,"count":1},{"name":"Support and returns","module":"support","x":2068,"y":0,"w":308,"h":272,"count":2},{"name":"Marketing and reviews","module":"marketing","x":2504,"y":0,"w":308,"h":560,"count":5},{"name":"Analytics","module":"analytics","x":2504,"y":688,"w":308,"h":144,"count":1}],"tables":[{"id":"accounts.users","x":24,"y":48,"h":216},{"id":"accounts.teams","x":348,"y":48,"h":168},{"id":"accounts.api_tokens","x":348,"y":248,"h":192},{"id":"accounts.audit_log","x":24,"y":296,"h":192},{"id":"accounts.password_resets","x":348,"y":472,"h":168},{"id":"accounts.sessions","x":24,"y":520,"h":168},{"id":"accounts.team_members","x":348,"y":672,"h":144},{"id":"catalog.products","x":784,"y":48,"h":72,"cols":[1]},{"id":"catalog.warehouses","x":784,"y":152,"h":72,"cols":[1]},{"id":"orders.carts","x":1220,"y":48,"h":72,"cols":[1]},{"id":"orders.discounts","x":1220,"y":152,"h":72,"cols":[1]},{"id":"orders.gift_cards","x":1220,"y":256,"h":72,"cols":[4]},{"id":"orders.order_status_events","x":1220,"y":360,"h":72,"cols":[4]},{"id":"orders.orders","x":1220,"y":464,"h":96,"cols":[2,3]},{"id":"payments.payment_methods","x":1656,"y":48,"h":72,"cols":[1]},{"id":"payments.payouts","x":1656,"y":152,"h":72,"cols":[1]},{"id":"shipping.addresses","x":1656,"y":424,"h":72,"cols":[1]},{"id":"support.ticket_messages","x":2092,"y":48,"h":72,"cols":[2]},{"id":"support.tickets","x":2092,"y":152,"h":96,"cols":[1,3]},{"id":"marketing.campaigns","x":2528,"y":48,"h":72,"cols":[1]},{"id":"marketing.newsletter_subscriptions","x":2528,"y":152,"h":72,"cols":[1]},{"id":"marketing.review_votes","x":2528,"y":256,"h":72,"cols":[1]},{"id":"marketing.reviews","x":2528,"y":360,"h":72,"cols":[2]},{"id":"marketing.wishlists","x":2528,"y":464,"h":72,"cols":[0]},{"id":"analytics.sales_daily","x":2528,"y":736,"h":72,"cols":[1]}],"refs":[[5,1,0,0],[4,1,0,0],[1,2,0,0],[6,0,1,0],[6,1,0,0],[2,1,1,0],[3,1,0,0],[7,0,1,0],[8,0,1,0],[9,0,0,0],[13,0,0,0],[13,1,1,0],[12,0,0,0],[10,0,1,0],[11,0,0,0],[14,0,0,0],[15,0,1,0],[16,0,0,0],[18,0,0,0],[18,1,0,0],[17,0,0,0],[22,0,0,0],[21,0,0,0],[23,0,0,0],[20,0,0,0],[19,0,1,0],[24,0,1,0]],"size":[2812,840]},{"code":"catalog","mode":"all","slug":"catalog","name":"Storefront — Catalog","label":"Catalog","module":"catalog","areas":[{"name":"Catalog","module":"catalog","x":0,"y":0,"w":632,"h":1120,"count":11},{"name":"Accounts and teams","module":"accounts","x":760,"y":0,"w":308,"h":144,"count":1},{"name":"Orders and carts","module":"orders","x":760,"y":272,"w":308,"h":248,"count":2},{"name":"Shipping","module":"shipping","x":760,"y":648,"w":308,"h":248,"count":2},{"name":"Support and returns","module":"support","x":1196,"y":0,"w":308,"h":144,"count":1},{"name":"Marketing and reviews","module":"marketing","x":1196,"y":272,"w":308,"h":352,"count":3},{"name":"Analytics","module":"analytics","x":1196,"y":752,"w":308,"h":144,"count":1}],"tables":[{"id":"catalog.product_variants","x":24,"y":48,"h":240},{"id":"catalog.products","x":348,"y":48,"h":264},{"id":"catalog.categories","x":24,"y":320,"h":168},{"id":"catalog.collections","x":348,"y":344,"h":144},{"id":"catalog.brands","x":24,"y":520,"h":120},{"id":"catalog.tags","x":348,"y":520,"h":96},{"id":"catalog.warehouses","x":348,"y":648,"h":144},{"id":"catalog.collection_products","x":24,"y":672,"h":120},{"id":"catalog.inventory_levels","x":24,"y":824,"h":144},{"id":"catalog.product_images","x":348,"y":824,"h":144},{"id":"catalog.product_tags","x":24,"y":1000,"h":96},{"id":"accounts.teams","x":784,"y":48,"h":72,"cols":[0]},{"id":"orders.cart_items","x":784,"y":320,"h":72,"cols":[1]},{"id":"orders.order_items","x":784,"y":424,"h":72,"cols":[1]},{"id":"shipping.addresses","x":784,"y":696,"h":72,"cols":[0]},{"id":"shipping.shipment_items","x":784,"y":800,"h":72,"cols":[1]},{"id":"support.return_items","x":1220,"y":48,"h":72,"cols":[1]},{"id":"marketing.campaigns","x":1220,"y":320,"h":72,"cols":[3]},{"id":"marketing.reviews","x":1220,"y":424,"h":72,"cols":[1]},{"id":"marketing.wishlists","x":1220,"y":528,"h":72,"cols":[1]},{"id":"analytics.product_views_daily","x":1220,"y":800,"h":72,"cols":[1]}],"refs":[[2,1,2,0],[1,1,11,0],[1,2,2,0],[1,3,4,0],[0,1,1,0],[9,0,1,0],[10,0,1,0],[10,1,5,0],[7,0,3,0],[7,1,1,0],[6,1,11,0],[6,3,14,0],[8,0,0,0],[8,1,6,0],[12,0,0,0],[13,0,0,0],[15,0,0,0],[16,0,0,0],[18,0,1,0],[19,0,0,0],[17,0,3,0],[20,0,1,0]],"size":[1504,1120]},{"code":"orders","mode":"all","slug":"orders","name":"Storefront — Orders and carts","label":"Orders and carts","module":"orders","areas":[{"name":"Orders and carts","module":"orders","x":0,"y":0,"w":632,"h":984,"count":8},{"name":"Accounts and teams","module":"accounts","x":760,"y":0,"w":308,"h":248,"count":2},{"name":"Catalog","module":"catalog","x":760,"y":376,"w":308,"h":144,"count":1},{"name":"Payments","module":"payments","x":760,"y":648,"w":308,"h":272,"count":2},{"name":"Shipping","module":"shipping","x":1196,"y":0,"w":308,"h":248,"count":2},{"name":"Support and returns","module":"support","x":1196,"y":376,"w":308,"h":248,"count":2},{"name":"Marketing and reviews","module":"marketing","x":1196,"y":752,"w":308,"h":144,"count":1}],"tables":[{"id":"orders.orders","x":24,"y":48,"h":312},{"id":"orders.carts","x":348,"y":48,"h":144},{"id":"orders.discounts","x":348,"y":224,"h":240},{"id":"orders.gift_cards","x":24,"y":392,"h":192},{"id":"orders.cart_items","x":348,"y":496,"h":120},{"id":"orders.discount_redemptions","x":24,"y":616,"h":120},{"id":"orders.order_items","x":348,"y":648,"h":144},{"id":"orders.order_status_events","x":24,"y":768,"h":192},{"id":"accounts.teams","x":784,"y":48,"h":72,"cols":[0]},{"id":"accounts.users","x":784,"y":152,"h":72,"cols":[0]},{"id":"catalog.product_variants","x":784,"y":424,"h":72,"cols":[0]},{"id":"payments.invoices","x":784,"y":696,"h":72,"cols":[1]},{"id":"payments.payments","x":784,"y":800,"h":96,"cols":[1,3]},{"id":"shipping.addresses","x":1220,"y":48,"h":72,"cols":[0]},{"id":"shipping.shipments","x":1220,"y":152,"h":72,"cols":[1]},{"id":"support.returns","x":1220,"y":424,"h":72,"cols":[1]},{"id":"support.tickets","x":1220,"y":528,"h":72,"cols":[2]},{"id":"marketing.reviews","x":1220,"y":800,"h":72,"cols":[3]}],"refs":[[1,1,9,0],[4,0,1,0],[4,1,10,0],[0,2,9,0],[0,3,8,0],[0,5,13,0],[6,0,0,0],[6,1,10,0],[7,1,0,0],[7,4,9,0],[2,1,8,0],[5,0,2,0],[5,1,0,0],[3,4,9,0],[12,0,0,0],[12,1,3,0],[11,0,0,0],[14,0,0,0],[16,0,0,0],[15,0,0,0],[17,0,0,0]],"size":[1504,984]},{"code":"payments","mode":"all","slug":"payments","name":"Storefront — Payments","label":"Payments","module":"payments","areas":[{"name":"Payments","module":"payments","x":0,"y":0,"w":632,"h":712,"count":6},{"name":"Accounts and teams","module":"accounts","x":760,"y":0,"w":308,"h":248,"count":2},{"name":"Orders and carts","module":"orders","x":760,"y":376,"w":308,"h":248,"count":2},{"name":"Support and returns","module":"support","x":1196,"y":0,"w":308,"h":144,"count":1}],"tables":[{"id":"payments.invoices","x":24,"y":48,"h":168},{"id":"payments.payment_methods","x":348,"y":48,"h":192},{"id":"payments.payments","x":24,"y":248,"h":216},{"id":"payments.invoice_lines","x":348,"y":272,"h":168},{"id":"payments.payouts","x":348,"y":472,"h":216},{"id":"payments.refunds","x":24,"y":496,"h":192},{"id":"accounts.teams","x":784,"y":48,"h":72,"cols":[0]},{"id":"accounts.users","x":784,"y":152,"h":72,"cols":[0]},{"id":"orders.gift_cards","x":784,"y":424,"h":72,"cols":[0]},{"id":"orders.orders","x":784,"y":528,"h":72,"cols":[0]},{"id":"support.returns","x":1220,"y":48,"h":72,"cols":[0]}],"refs":[[1,1,7,0],[2,1,9,0],[2,2,1,0],[2,3,8,0],[5,1,2,0],[5,2,10,0],[0,1,9,0],[3,0,0,0],[4,1,6,0]],"size":[1504,712]},{"code":"shipping","mode":"all","slug":"shipping","name":"Storefront — Shipping","label":"Shipping","module":"shipping","areas":[{"name":"Shipping","module":"shipping","x":0,"y":0,"w":632,"h":640,"count":6},{"name":"Accounts and teams","module":"accounts","x":760,"y":0,"w":308,"h":144,"count":1},{"name":"Catalog","module":"catalog","x":760,"y":272,"w":308,"h":248,"count":2},{"name":"Orders and carts","module":"orders","x":1196,"y":0,"w":308,"h":168,"count":1}],"tables":[{"id":"shipping.addresses","x":24,"y":48,"h":216},{"id":"shipping.carriers","x":348,"y":48,"h":120},{"id":"shipping.shipments","x":348,"y":200,"h":192},{"id":"shipping.shipment_items","x":24,"y":296,"h":120},{"id":"shipping.shipping_rates","x":348,"y":424,"h":168},{"id":"shipping.tracking_events","x":24,"y":448,"h":168},{"id":"accounts.users","x":784,"y":48,"h":72,"cols":[0]},{"id":"catalog.product_variants","x":784,"y":320,"h":72,"cols":[0]},{"id":"catalog.warehouses","x":784,"y":424,"h":72,"cols":[3]},{"id":"orders.orders","x":1220,"y":48,"h":96,"cols":[0,5]}],"refs":[[8,0,0,0],[9,1,0,0],[0,1,6,0],[4,1,1,0],[2,1,9,0],[2,2,1,0],[3,0,2,0],[3,1,7,0],[5,1,2,0]],"size":[1504,640]},{"code":"support","mode":"all","slug":"support","name":"Storefront — Support and returns","label":"Support and returns","module":"support","areas":[{"name":"Support and returns","module":"support","x":0,"y":0,"w":632,"h":512,"count":4},{"name":"Accounts and teams","module":"accounts","x":760,"y":0,"w":308,"h":144,"count":1},{"name":"Catalog","module":"catalog","x":760,"y":272,"w":308,"h":144,"count":1},{"name":"Orders and carts","module":"orders","x":1196,"y":0,"w":308,"h":144,"count":1},{"name":"Payments","module":"payments","x":1196,"y":272,"w":308,"h":144,"count":1}],"tables":[{"id":"support.returns","x":24,"y":48,"h":168},{"id":"support.tickets","x":348,"y":48,"h":216},{"id":"support.return_items","x":24,"y":248,"h":144},{"id":"support.ticket_messages","x":348,"y":296,"h":192},{"id":"accounts.users","x":784,"y":48,"h":72,"cols":[0]},{"id":"catalog.product_variants","x":784,"y":320,"h":72,"cols":[0]},{"id":"orders.orders","x":1220,"y":48,"h":72,"cols":[0]},{"id":"payments.refunds","x":1220,"y":320,"h":72,"cols":[2]}],"refs":[[7,0,0,0],[1,1,4,0],[1,2,6,0],[1,3,4,0],[3,1,1,0],[3,2,4,0],[0,1,6,0],[2,0,0,0],[2,1,5,0]],"size":[1504,512]},{"code":"marketing","mode":"all","slug":"marketing","name":"Storefront — Marketing and reviews","label":"Marketing and reviews","module":"marketing","areas":[{"name":"Marketing and reviews","module":"marketing","x":0,"y":0,"w":632,"h":592,"count":5},{"name":"Accounts and teams","module":"accounts","x":760,"y":0,"w":308,"h":248,"count":2},{"name":"Catalog","module":"catalog","x":1196,"y":0,"w":308,"h":352,"count":3},{"name":"Orders and carts","module":"orders","x":1632,"y":0,"w":308,"h":144,"count":1}],"tables":[{"id":"marketing.reviews","x":24,"y":48,"h":216},{"id":"marketing.campaigns","x":348,"y":48,"h":192},{"id":"marketing.newsletter_subscriptions","x":348,"y":272,"h":144},{"id":"marketing.review_votes","x":24,"y":296,"h":120},{"id":"marketing.wishlists","x":24,"y":448,"h":120},{"id":"accounts.teams","x":784,"y":48,"h":72,"cols":[0]},{"id":"accounts.users","x":784,"y":152,"h":72,"cols":[0]},{"id":"catalog.collections","x":1220,"y":48,"h":72,"cols":[0]},{"id":"catalog.product_variants","x":1220,"y":152,"h":72,"cols":[0]},{"id":"catalog.products","x":1220,"y":256,"h":72,"cols":[0]},{"id":"orders.orders","x":1656,"y":48,"h":72,"cols":[0]}],"refs":[[0,1,9,0],[0,2,6,0],[0,3,10,0],[3,0,0,0],[3,1,6,0],[4,0,6,0],[4,1,8,0],[2,1,6,0],[1,1,5,0],[1,3,7,0]],"size":[1940,592]},{"code":"analytics","mode":"all","slug":"analytics","name":"Storefront — Analytics","label":"Analytics","module":"analytics","areas":[{"name":"Analytics","module":"analytics","x":0,"y":0,"w":308,"h":416,"count":2},{"name":"Accounts and teams","module":"accounts","x":436,"y":0,"w":308,"h":144,"count":1},{"name":"Catalog","module":"catalog","x":436,"y":272,"w":308,"h":144,"count":1}],"tables":[{"id":"analytics.product_views_daily","x":24,"y":48,"h":144},{"id":"analytics.sales_daily","x":24,"y":224,"h":168},{"id":"accounts.teams","x":460,"y":48,"h":72,"cols":[0]},{"id":"catalog.products","x":460,"y":320,"h":72,"cols":[0]}],"refs":[[0,1,3,0],[1,1,2,0]],"size":[744,416]},{"code":"overview","mode":"keys","slug":"overview","name":"Storefront — overview","label":"Overview","module":null,"areas":[{"name":"Accounts and teams","module":"accounts","x":0,"y":0,"w":956,"h":448,"count":7},{"name":"Catalog","module":"catalog","x":1084,"y":0,"w":1280,"h":448,"count":11},{"name":"Orders and carts","module":"orders","x":0,"y":576,"w":1280,"h":368,"count":8},{"name":"Payments","module":"payments","x":1408,"y":576,"w":956,"h":368,"count":6},{"name":"Shipping","module":"shipping","x":0,"y":1072,"w":956,"h":448,"count":6},{"name":"Support and returns","module":"support","x":1084,"y":1072,"w":632,"h":448,"count":4},{"name":"Marketing and reviews","module":"marketing","x":1844,"y":1072,"w":632,"h":448,"count":5},{"name":"Analytics","module":"analytics","x":2604,"y":1072,"w":308,"h":448,"count":2}],"tables":[{"id":"accounts.users","x":24,"y":48,"h":72,"cols":[0]},{"id":"accounts.sessions","x":672,"y":176,"h":96,"cols":[0,1]},{"id":"accounts.password_resets","x":348,"y":176,"h":96,"cols":[0,1]},{"id":"accounts.teams","x":348,"y":48,"h":96,"cols":[0,2]},{"id":"accounts.team_members","x":24,"y":280,"h":96,"cols":[0,1]},{"id":"accounts.api_tokens","x":672,"y":48,"h":96,"cols":[0,1]},{"id":"accounts.audit_log","x":24,"y":152,"h":96,"cols":[0,1]},{"id":"catalog.brands","x":2080,"y":152,"h":72,"cols":[0]},{"id":"catalog.categories","x":1756,"y":48,"h":96,"cols":[0,1]},{"id":"catalog.products","x":1432,"y":48,"h":144,"cols":[0,1,2,3]},{"id":"catalog.product_variants","x":1108,"y":48,"h":96,"cols":[0,1]},{"id":"catalog.product_images","x":1108,"y":280,"h":96,"cols":[0,1]},{"id":"catalog.tags","x":1108,"y":176,"h":72,"cols":[0]},{"id":"catalog.product_tags","x":1756,"y":328,"h":96},{"id":"catalog.collections","x":2080,"y":48,"h":72,"cols":[0]},{"id":"catalog.collection_products","x":1432,"y":224,"h":96,"cols":[0,1]},{"id":"catalog.warehouses","x":1756,"y":176,"h":120,"cols":[0,1,3]},{"id":"catalog.inventory_levels","x":2080,"y":256,"h":96,"cols":[0,1]},{"id":"orders.carts","x":348,"y":624,"h":96,"cols":[0,1]},{"id":"orders.cart_items","x":348,"y":752,"h":96,"cols":[0,1]},{"id":"orders.orders","x":24,"y":624,"h":144,"cols":[0,2,3,5]},{"id":"orders.order_items","x":996,"y":752,"h":96,"cols":[0,1]},{"id":"orders.order_status_events","x":24,"y":800,"h":120,"cols":[0,1,4]},{"id":"orders.discounts","x":672,"y":624,"h":96,"cols":[0,1]},{"id":"orders.discount_redemptions","x":672,"y":752,"h":96,"cols":[0,1]},{"id":"orders.gift_cards","x":996,"y":624,"h":96,"cols":[0,4]},{"id":"payments.payment_methods","x":1756,"y":624,"h":96,"cols":[0,1]},{"id":"payments.payments","x":2080,"y":624,"h":144,"cols":[0,1,2,3]},{"id":"payments.refunds","x":2080,"y":800,"h":120,"cols":[0,1,2]},{"id":"payments.invoices","x":1432,"y":624,"h":96,"cols":[0,1]},{"id":"payments.invoice_lines","x":1432,"y":752,"h":96,"cols":[0,1]},{"id":"payments.payouts","x":1756,"y":752,"h":96,"cols":[0,1]},{"id":"shipping.addresses","x":24,"y":1120,"h":96,"cols":[0,1]},{"id":"shipping.carriers","x":348,"y":1120,"h":72,"cols":[0]},{"id":"shipping.shipping_rates","x":24,"y":1248,"h":96,"cols":[0,1]},{"id":"shipping.shipments","x":672,"y":1120,"h":120,"cols":[0,1,2]},{"id":"shipping.shipment_items","x":348,"y":1224,"h":96,"cols":[0,1]},{"id":"shipping.tracking_events","x":672,"y":1272,"h":96,"cols":[0,1]},{"id":"support.tickets","x":1432,"y":1120,"h":144,"cols":[0,1,2,3]},{"id":"support.ticket_messages","x":1432,"y":1296,"h":120,"cols":[0,1,2]},{"id":"support.returns","x":1108,"y":1120,"h":96,"cols":[0,1]},{"id":"support.return_items","x":1108,"y":1248,"h":96,"cols":[0,1]},{"id":"marketing.reviews","x":1868,"y":1120,"h":144,"cols":[0,1,2,3]},{"id":"marketing.review_votes","x":1868,"y":1296,"h":96,"cols":[0,1]},{"id":"marketing.wishlists","x":2192,"y":1400,"h":96,"cols":[0,1]},{"id":"marketing.newsletter_subscriptions","x":2192,"y":1272,"h":96,"cols":[0,1]},{"id":"marketing.campaigns","x":2192,"y":1120,"h":120,"cols":[0,1,3]},{"id":"analytics.product_views_daily","x":2628,"y":1120,"h":96,"cols":[0,1]},{"id":"analytics.sales_daily","x":2628,"y":1248,"h":120,"cols":[0,1,4]}],"refs":[[1,1,0,0],[2,1,0,0],[3,1,0,0],[4,0,3,0],[4,1,0,0],[5,1,3,0],[6,1,0,0],[8,1,8,0],[9,1,3,0],[9,2,8,0],[9,3,7,0],[10,1,9,0],[11,0,9,0],[13,0,9,0],[13,1,12,0],[15,0,14,0],[15,1,9,0],[16,1,3,0],[16,2,32,0],[17,0,10,0],[17,1,16,0],[18,1,0,0],[19,0,18,0],[19,1,10,0],[20,1,0,0],[20,2,3,0],[20,3,32,0],[21,0,20,0],[21,1,10,0],[22,1,20,0],[22,2,0,0],[23,1,3,0],[24,0,23,0],[24,1,20,0],[25,1,0,0],[26,1,0,0],[27,1,20,0],[27,2,26,0],[27,3,25,0],[28,1,27,0],[28,2,40,0],[29,1,20,0],[30,0,29,0],[31,1,3,0],[32,1,0,0],[34,1,33,0],[35,1,20,0],[35,2,33,0],[36,0,35,0],[36,1,10,0],[37,1,35,0],[38,1,0,0],[38,2,20,0],[38,3,0,0],[39,1,38,0],[39,2,0,0],[40,1,20,0],[41,0,40,0],[41,1,10,0],[42,1,9,0],[42,2,0,0],[42,3,20,0],[43,0,42,0],[43,1,0,0],[44,0,0,0],[44,1,10,0],[45,1,0,0],[46,1,3,0],[46,2,14,0],[47,1,9,0],[48,1,3,0]],"size":[2912,1520]},{"code":"accounts","mode":"keys","slug":"accounts","name":"Storefront — Accounts and teams","label":"Accounts and teams","module":"accounts","areas":[{"name":"Accounts and teams","module":"accounts","x":0,"y":0,"w":308,"h":912,"count":7},{"name":"Catalog","module":"catalog","x":436,"y":0,"w":308,"h":248,"count":2},{"name":"Orders and carts","module":"orders","x":872,"y":0,"w":308,"h":584,"count":5},{"name":"Payments","module":"payments","x":1308,"y":0,"w":308,"h":248,"count":2},{"name":"Shipping","module":"shipping","x":1308,"y":376,"w":308,"h":144,"count":1},{"name":"Support and returns","module":"support","x":1744,"y":0,"w":308,"h":272,"count":2},{"name":"Marketing and reviews","module":"marketing","x":2180,"y":0,"w":308,"h":560,"count":5},{"name":"Analytics","module":"analytics","x":2180,"y":688,"w":308,"h":144,"count":1}],"tables":[{"id":"accounts.users","x":24,"y":48,"h":72,"cols":[0]},{"id":"accounts.teams","x":24,"y":152,"h":96,"cols":[0,2]},{"id":"accounts.api_tokens","x":24,"y":280,"h":96,"cols":[0,1]},{"id":"accounts.audit_log","x":24,"y":408,"h":96,"cols":[0,1]},{"id":"accounts.password_resets","x":24,"y":536,"h":96,"cols":[0,1]},{"id":"accounts.sessions","x":24,"y":664,"h":96,"cols":[0,1]},{"id":"accounts.team_members","x":24,"y":792,"h":96,"cols":[0,1]},{"id":"catalog.products","x":460,"y":48,"h":72,"cols":[1]},{"id":"catalog.warehouses","x":460,"y":152,"h":72,"cols":[1]},{"id":"orders.carts","x":896,"y":48,"h":72,"cols":[1]},{"id":"orders.discounts","x":896,"y":152,"h":72,"cols":[1]},{"id":"orders.gift_cards","x":896,"y":256,"h":72,"cols":[4]},{"id":"orders.order_status_events","x":896,"y":360,"h":72,"cols":[4]},{"id":"orders.orders","x":896,"y":464,"h":96,"cols":[2,3]},{"id":"payments.payment_methods","x":1332,"y":48,"h":72,"cols":[1]},{"id":"payments.payouts","x":1332,"y":152,"h":72,"cols":[1]},{"id":"shipping.addresses","x":1332,"y":424,"h":72,"cols":[1]},{"id":"support.ticket_messages","x":1768,"y":48,"h":72,"cols":[2]},{"id":"support.tickets","x":1768,"y":152,"h":96,"cols":[1,3]},{"id":"marketing.campaigns","x":2204,"y":48,"h":72,"cols":[1]},{"id":"marketing.newsletter_subscriptions","x":2204,"y":152,"h":72,"cols":[1]},{"id":"marketing.review_votes","x":2204,"y":256,"h":72,"cols":[1]},{"id":"marketing.reviews","x":2204,"y":360,"h":72,"cols":[2]},{"id":"marketing.wishlists","x":2204,"y":464,"h":72,"cols":[0]},{"id":"analytics.sales_daily","x":2204,"y":736,"h":72,"cols":[1]}],"refs":[[5,1,0,0],[4,1,0,0],[1,1,0,0],[6,0,1,0],[6,1,0,0],[2,1,1,0],[3,1,0,0],[7,0,1,0],[8,0,1,0],[9,0,0,0],[13,0,0,0],[13,1,1,0],[12,0,0,0],[10,0,1,0],[11,0,0,0],[14,0,0,0],[15,0,1,0],[16,0,0,0],[18,0,0,0],[18,1,0,0],[17,0,0,0],[22,0,0,0],[21,0,0,0],[23,0,0,0],[20,0,0,0],[19,0,1,0],[24,0,1,0]],"size":[2488,912]},{"code":"catalog","mode":"keys","slug":"catalog","name":"Storefront — Catalog","label":"Catalog","module":"catalog","areas":[{"name":"Catalog","module":"catalog","x":0,"y":0,"w":632,"h":808,"count":11},{"name":"Accounts and teams","module":"accounts","x":760,"y":0,"w":308,"h":144,"count":1},{"name":"Orders and carts","module":"orders","x":760,"y":272,"w":308,"h":248,"count":2},{"name":"Shipping","module":"shipping","x":1196,"y":0,"w":308,"h":248,"count":2},{"name":"Support and returns","module":"support","x":1196,"y":376,"w":308,"h":144,"count":1},{"name":"Marketing and reviews","module":"marketing","x":1632,"y":0,"w":308,"h":352,"count":3},{"name":"Analytics","module":"analytics","x":1632,"y":480,"w":308,"h":144,"count":1}],"tables":[{"id":"catalog.product_variants","x":24,"y":48,"h":96,"cols":[0,1]},{"id":"catalog.products","x":348,"y":48,"h":144,"cols":[0,1,2,3]},{"id":"catalog.categories","x":24,"y":176,"h":96,"cols":[0,1]},{"id":"catalog.collections","x":348,"y":224,"h":72,"cols":[0]},{"id":"catalog.brands","x":24,"y":304,"h":72,"cols":[0]},{"id":"catalog.tags","x":348,"y":328,"h":72,"cols":[0]},{"id":"catalog.warehouses","x":24,"y":408,"h":120,"cols":[0,1,3]},{"id":"catalog.collection_products","x":348,"y":432,"h":96,"cols":[0,1]},{"id":"catalog.inventory_levels","x":24,"y":560,"h":96,"cols":[0,1]},{"id":"catalog.product_images","x":348,"y":560,"h":96,"cols":[0,1]},{"id":"catalog.product_tags","x":24,"y":688,"h":96},{"id":"accounts.teams","x":784,"y":48,"h":72,"cols":[0]},{"id":"orders.cart_items","x":784,"y":320,"h":72,"cols":[1]},{"id":"orders.order_items","x":784,"y":424,"h":72,"cols":[1]},{"id":"shipping.addresses","x":1220,"y":48,"h":72,"cols":[0]},{"id":"shipping.shipment_items","x":1220,"y":152,"h":72,"cols":[1]},{"id":"support.return_items","x":1220,"y":424,"h":72,"cols":[1]},{"id":"marketing.campaigns","x":1656,"y":48,"h":72,"cols":[3]},{"id":"marketing.reviews","x":1656,"y":152,"h":72,"cols":[1]},{"id":"marketing.wishlists","x":1656,"y":256,"h":72,"cols":[1]},{"id":"analytics.product_views_daily","x":1656,"y":528,"h":72,"cols":[1]}],"refs":[[2,1,2,0],[1,1,11,0],[1,2,2,0],[1,3,4,0],[0,1,1,0],[9,0,1,0],[10,0,1,0],[10,1,5,0],[7,0,3,0],[7,1,1,0],[6,1,11,0],[6,2,14,0],[8,0,0,0],[8,1,6,0],[12,0,0,0],[13,0,0,0],[15,0,0,0],[16,0,0,0],[18,0,1,0],[19,0,0,0],[17,0,3,0],[20,0,1,0]],"size":[1940,808]},{"code":"orders","mode":"keys","slug":"orders","name":"Storefront — Orders and carts","label":"Orders and carts","module":"orders","areas":[{"name":"Orders and carts","module":"orders","x":0,"y":0,"w":308,"h":1136,"count":8},{"name":"Accounts and teams","module":"accounts","x":436,"y":0,"w":308,"h":248,"count":2},{"name":"Catalog","module":"catalog","x":436,"y":376,"w":308,"h":144,"count":1},{"name":"Payments","module":"payments","x":436,"y":648,"w":308,"h":272,"count":2},{"name":"Shipping","module":"shipping","x":872,"y":0,"w":308,"h":248,"count":2},{"name":"Support and returns","module":"support","x":872,"y":376,"w":308,"h":248,"count":2},{"name":"Marketing and reviews","module":"marketing","x":872,"y":752,"w":308,"h":144,"count":1}],"tables":[{"id":"orders.orders","x":24,"y":48,"h":144,"cols":[0,2,3,5]},{"id":"orders.carts","x":24,"y":224,"h":96,"cols":[0,1]},{"id":"orders.discounts","x":24,"y":352,"h":96,"cols":[0,1]},{"id":"orders.gift_cards","x":24,"y":480,"h":96,"cols":[0,4]},{"id":"orders.cart_items","x":24,"y":608,"h":96,"cols":[0,1]},{"id":"orders.discount_redemptions","x":24,"y":736,"h":96,"cols":[0,1]},{"id":"orders.order_items","x":24,"y":864,"h":96,"cols":[0,1]},{"id":"orders.order_status_events","x":24,"y":992,"h":120,"cols":[0,1,4]},{"id":"accounts.teams","x":460,"y":48,"h":72,"cols":[0]},{"id":"accounts.users","x":460,"y":152,"h":72,"cols":[0]},{"id":"catalog.product_variants","x":460,"y":424,"h":72,"cols":[0]},{"id":"payments.invoices","x":460,"y":696,"h":72,"cols":[1]},{"id":"payments.payments","x":460,"y":800,"h":96,"cols":[1,3]},{"id":"shipping.addresses","x":896,"y":48,"h":72,"cols":[0]},{"id":"shipping.shipments","x":896,"y":152,"h":72,"cols":[1]},{"id":"support.returns","x":896,"y":424,"h":72,"cols":[1]},{"id":"support.tickets","x":896,"y":528,"h":72,"cols":[2]},{"id":"marketing.reviews","x":896,"y":800,"h":72,"cols":[3]}],"refs":[[1,1,9,0],[4,0,1,0],[4,1,10,0],[0,1,9,0],[0,2,8,0],[0,3,13,0],[6,0,0,0],[6,1,10,0],[7,1,0,0],[7,2,9,0],[2,1,8,0],[5,0,2,0],[5,1,0,0],[3,1,9,0],[12,0,0,0],[12,1,3,0],[11,0,0,0],[14,0,0,0],[16,0,0,0],[15,0,0,0],[17,0,0,0]],"size":[1180,1136]},{"code":"payments","mode":"keys","slug":"payments","name":"Storefront — Payments","label":"Payments","module":"payments","areas":[{"name":"Payments","module":"payments","x":0,"y":0,"w":308,"h":880,"count":6},{"name":"Accounts and teams","module":"accounts","x":436,"y":0,"w":308,"h":248,"count":2},{"name":"Orders and carts","module":"orders","x":436,"y":376,"w":308,"h":248,"count":2},{"name":"Support and returns","module":"support","x":872,"y":0,"w":308,"h":144,"count":1}],"tables":[{"id":"payments.invoices","x":24,"y":48,"h":96,"cols":[0,1]},{"id":"payments.payment_methods","x":24,"y":176,"h":96,"cols":[0,1]},{"id":"payments.payments","x":24,"y":304,"h":144,"cols":[0,1,2,3]},{"id":"payments.invoice_lines","x":24,"y":480,"h":96,"cols":[0,1]},{"id":"payments.payouts","x":24,"y":608,"h":96,"cols":[0,1]},{"id":"payments.refunds","x":24,"y":736,"h":120,"cols":[0,1,2]},{"id":"accounts.teams","x":460,"y":48,"h":72,"cols":[0]},{"id":"accounts.users","x":460,"y":152,"h":72,"cols":[0]},{"id":"orders.gift_cards","x":460,"y":424,"h":72,"cols":[0]},{"id":"orders.orders","x":460,"y":528,"h":72,"cols":[0]},{"id":"support.returns","x":896,"y":48,"h":72,"cols":[0]}],"refs":[[1,1,7,0],[2,1,9,0],[2,2,1,0],[2,3,8,0],[5,1,2,0],[5,2,10,0],[0,1,9,0],[3,0,0,0],[4,1,6,0]],"size":[1180,880]},{"code":"shipping","mode":"keys","slug":"shipping","name":"Storefront — Shipping","label":"Shipping","module":"shipping","areas":[{"name":"Shipping","module":"shipping","x":0,"y":0,"w":308,"h":808,"count":6},{"name":"Accounts and teams","module":"accounts","x":436,"y":0,"w":308,"h":144,"count":1},{"name":"Catalog","module":"catalog","x":436,"y":272,"w":308,"h":248,"count":2},{"name":"Orders and carts","module":"orders","x":872,"y":0,"w":308,"h":168,"count":1}],"tables":[{"id":"shipping.addresses","x":24,"y":48,"h":96,"cols":[0,1]},{"id":"shipping.carriers","x":24,"y":176,"h":72,"cols":[0]},{"id":"shipping.shipments","x":24,"y":280,"h":120,"cols":[0,1,2]},{"id":"shipping.shipment_items","x":24,"y":432,"h":96,"cols":[0,1]},{"id":"shipping.shipping_rates","x":24,"y":560,"h":96,"cols":[0,1]},{"id":"shipping.tracking_events","x":24,"y":688,"h":96,"cols":[0,1]},{"id":"accounts.users","x":460,"y":48,"h":72,"cols":[0]},{"id":"catalog.product_variants","x":460,"y":320,"h":72,"cols":[0]},{"id":"catalog.warehouses","x":460,"y":424,"h":72,"cols":[3]},{"id":"orders.orders","x":896,"y":48,"h":96,"cols":[0,5]}],"refs":[[8,0,0,0],[9,1,0,0],[0,1,6,0],[4,1,1,0],[2,1,9,0],[2,2,1,0],[3,0,2,0],[3,1,7,0],[5,1,2,0]],"size":[1180,808]},{"code":"support","mode":"keys","slug":"support","name":"Storefront — Support and returns","label":"Support and returns","module":"support","areas":[{"name":"Support and returns","module":"support","x":0,"y":0,"w":308,"h":624,"count":4},{"name":"Accounts and teams","module":"accounts","x":436,"y":0,"w":308,"h":144,"count":1},{"name":"Catalog","module":"catalog","x":436,"y":272,"w":308,"h":144,"count":1},{"name":"Orders and carts","module":"orders","x":872,"y":0,"w":308,"h":144,"count":1},{"name":"Payments","module":"payments","x":872,"y":272,"w":308,"h":144,"count":1}],"tables":[{"id":"support.returns","x":24,"y":48,"h":96,"cols":[0,1]},{"id":"support.tickets","x":24,"y":176,"h":144,"cols":[0,1,2,3]},{"id":"support.return_items","x":24,"y":352,"h":96,"cols":[0,1]},{"id":"support.ticket_messages","x":24,"y":480,"h":120,"cols":[0,1,2]},{"id":"accounts.users","x":460,"y":48,"h":72,"cols":[0]},{"id":"catalog.product_variants","x":460,"y":320,"h":72,"cols":[0]},{"id":"orders.orders","x":896,"y":48,"h":72,"cols":[0]},{"id":"payments.refunds","x":896,"y":320,"h":72,"cols":[2]}],"refs":[[7,0,0,0],[1,1,4,0],[1,2,6,0],[1,3,4,0],[3,1,1,0],[3,2,4,0],[0,1,6,0],[2,0,0,0],[2,1,5,0]],"size":[1180,624]},{"code":"marketing","mode":"keys","slug":"marketing","name":"Storefront — Marketing and reviews","label":"Marketing and reviews","module":"marketing","areas":[{"name":"Marketing and reviews","module":"marketing","x":0,"y":0,"w":308,"h":752,"count":5},{"name":"Accounts and teams","module":"accounts","x":436,"y":0,"w":308,"h":248,"count":2},{"name":"Catalog","module":"catalog","x":436,"y":376,"w":308,"h":352,"count":3},{"name":"Orders and carts","module":"orders","x":872,"y":0,"w":308,"h":144,"count":1}],"tables":[{"id":"marketing.reviews","x":24,"y":48,"h":144,"cols":[0,1,2,3]},{"id":"marketing.campaigns","x":24,"y":224,"h":120,"cols":[0,1,3]},{"id":"marketing.newsletter_subscriptions","x":24,"y":376,"h":96,"cols":[0,1]},{"id":"marketing.review_votes","x":24,"y":504,"h":96,"cols":[0,1]},{"id":"marketing.wishlists","x":24,"y":632,"h":96,"cols":[0,1]},{"id":"accounts.teams","x":460,"y":48,"h":72,"cols":[0]},{"id":"accounts.users","x":460,"y":152,"h":72,"cols":[0]},{"id":"catalog.collections","x":460,"y":424,"h":72,"cols":[0]},{"id":"catalog.product_variants","x":460,"y":528,"h":72,"cols":[0]},{"id":"catalog.products","x":460,"y":632,"h":72,"cols":[0]},{"id":"orders.orders","x":896,"y":48,"h":72,"cols":[0]}],"refs":[[0,1,9,0],[0,2,6,0],[0,3,10,0],[3,0,0,0],[3,1,6,0],[4,0,6,0],[4,1,8,0],[2,1,6,0],[1,1,5,0],[1,2,7,0]],"size":[1180,752]},{"code":"analytics","mode":"keys","slug":"analytics","name":"Storefront — Analytics","label":"Analytics","module":"analytics","areas":[{"name":"Analytics","module":"analytics","x":0,"y":0,"w":308,"h":320,"count":2},{"name":"Accounts and teams","module":"accounts","x":436,"y":0,"w":308,"h":144,"count":1},{"name":"Catalog","module":"catalog","x":872,"y":0,"w":308,"h":144,"count":1}],"tables":[{"id":"analytics.product_views_daily","x":24,"y":48,"h":96,"cols":[0,1]},{"id":"analytics.sales_daily","x":24,"y":176,"h":120,"cols":[0,1,4]},{"id":"accounts.teams","x":460,"y":48,"h":72,"cols":[0]},{"id":"catalog.products","x":896,"y":48,"h":72,"cols":[0]}],"refs":[[0,1,3,0],[1,1,2,0]],"size":[1180,320]}]}</script>
+<script id="schemap-core">
+'use strict';
+/*
+ * schemap core: schema.json → checked, laid-out diagrams. No page access here, so the same code runs in the
+ * viewer and in check.mjs (Node). layoutSchema(raw) returns { data, summary } or throws SchemaError / Error
+ * with every problem it found. Layout: same-width columns of cards, the next card in the shortest column;
+ * one area per module; each diagram in two views (all columns; keys only).
+ */
+const LAYOUT = {
+  cardW: 260, cardHead: 48, row: 24,           // 4-point scale: 8 + name 16 + title 16 + 8; a row is 24
+  gapX: 64, gapY: 32,                          // between card columns: room for reference lines
+  areaPad: 24, areaTop: 48, areaGap: 128,      // area name: 12 + label 24 + 12; between areas
+  viewAspect: 1440 / 744, maxRows: 4, maxTarget: 9000,
+};
+// module colour for a dark and for a light background; neighbouring areas get distant hues
+const PALETTE = [
+  ['#8eb7ff', '#2563eb'], ['#ff9f74', '#c2410c'], ['#8a61f5', '#6d28d9'],
+  ['#c05dcf', '#a21caf'], ['#ffe374', '#a16207'], ['#42e0c0', '#0f766e'],
+  ['#9ef07a', '#4d7c0f'], ['#ff6363', '#dc2626'], ['#4dee8a', '#15803d'],
+  ['#7dd3fc', '#0369a1'], ['#fda4af', '#be123c'], ['#cbd5e1', '#475569'],
+];
+const NEIGHBOUR_HUE_MIN = 45;
+const FLAG = { PK: 1, FK: 2, NULLABLE: 4 };
+const MODES = ['all', 'keys'];
+const SCHEMA_STATUSES = ['new', 'changed', 'same'];
+const SCHEMA_LANGS = ['en', 'ru'];
+const WORDS = { en: { overview: 'Overview', database: 'Database' }, ru: { overview: 'Обзор', database: 'База' } };
+// address slugs: ASCII letters, digits, single hyphens — the only #name a claude.ai artifact link carries;
+// claude.ai reserves these names for itself
+const RESERVED_SLUGS = new Set(['settings', 'sidebar', 'customize', 'upgrade', 'downloads']);
+
+class SchemaError extends Error {}
+
+// ---------- input format: optional fields get their documented defaults here, in one place ----------
+function checkSchema(raw) {
+  const problems = [];
+  const need = (condition, message) => { if (!condition) problems.push(message); return Boolean(condition); };
+  const isText = (value) => typeof value === 'string' && value !== '';
+  const isObject = (value) => value !== null && typeof value === 'object' && !Array.isArray(value);
+  if (!isObject(raw)) throw new SchemaError('the schema must be a JSON object');
+  const lang = raw.lang ?? 'en';
+  need(SCHEMA_LANGS.includes(lang), `"lang" must be one of ${SCHEMA_LANGS.join(', ')}, got ${JSON.stringify(lang)}`);
+  const tables = raw.tables;
+  if (!need(Array.isArray(tables) && tables.length > 0, '"tables" must be a non-empty list')) {
+    throw new SchemaError(problems.join('\n'));
+  }
+  const refs = raw.refs ?? [];
+  need(Array.isArray(refs), '"refs" must be a list');
+
+  const seen = new Set(), clean = [];
+  tables.forEach((t, n) => {
+    if (!need(isObject(t), `tables[${n}]: must be an object`)) return;
+    need(isText(t.id), `tables[${n}]: "id" must be a non-empty string`);
+    const where = `table ${t.id}`;
+    need(!seen.has(t.id), `${where}: duplicate id`);
+    seen.add(t.id);
+    need(isText(t.name), `${where}: "name" must be a non-empty string`);
+    need(isText(t.module), `${where}: "module" must be a non-empty string`);
+    const status = t.status ?? 'same';
+    need(SCHEMA_STATUSES.includes(status), `${where}: "status" must be one of ${SCHEMA_STATUSES.join(', ')}, got ${JSON.stringify(status)}`);
+    if (!need(Array.isArray(t.columns) && t.columns.length > 0, `${where}: "columns" must be a non-empty list`)) return;
+    const names = new Set(), columns = [];
+    for (const c of t.columns) {
+      if (!need(isObject(c) && isText(c.name), `${where}: every column needs a "name"`)) continue;
+      need(!names.has(c.name), `${where}: duplicate column ${c.name}`);
+      names.add(c.name);
+      need(isText(c.type), `${where}.${c.name}: "type" must be a non-empty string`);
+      const pk = c.pk ?? false, nullable = c.nullable ?? true;
+      need(typeof pk === 'boolean' && typeof nullable === 'boolean', `${where}.${c.name}: "pk" and "nullable" must be true or false`);
+      columns.push({ name: c.name, type: c.type || '', pk, nullable, note: c.note || '' });
+    }
+    clean.push({ id: t.id, name: t.name, module: t.module, status, title: t.title || '', note: t.note || '', columns });
+  });
+
+  const byId = new Map(clean.map((t) => [t.id, t]));
+  const cleanRefs = [], refKeys = new Set();
+  let duplicates = 0;
+  (Array.isArray(refs) ? refs : []).forEach((r, n) => {
+    const where = `refs[${n}]`;
+    const ends = ['from', 'to'].map((side) => r && r[side]);
+    if (!need(ends.every((end) => isObject(end) && Array.isArray(end.columns)),
+      `${where}: needs "from" and "to", each with "table" and "columns"`)) return;
+    let ok = true;
+    for (const { table, columns } of ends) {
+      if (!need(byId.has(table), `${where}: unknown table ${table}`)) { ok = false; continue; }
+      const have = new Set(byId.get(table).columns.map((c) => c.name));
+      for (const col of columns) ok = need(have.has(col), `${where}: table ${table} has no column ${col}`) && ok;
+    }
+    ok = need(ends[0].columns.length === ends[1].columns.length && ends[0].columns.length > 0,
+      `${where}: "from" and "to" need the same non-zero number of columns`) && ok;
+    if (!ok) return;
+    const ref = { from: { table: ends[0].table, columns: [...ends[0].columns] }, to: { table: ends[1].table, columns: [...ends[1].columns] } };
+    const key = JSON.stringify(ref);
+    if (refKeys.has(key)) duplicates++;
+    refKeys.add(key);
+    cleanRefs.push(ref);
+  });
+  need(duplicates === 0, `${duplicates} duplicate references`);
+
+  const used = [...new Set(clean.map((t) => t.module))];
+  let modules = raw.modules;
+  if (modules === undefined || modules === null) {
+    modules = [...used].sort().map((code) => ({ code, name: code }));
+  } else if (need(Array.isArray(modules), '"modules" must be a list')) {
+    const codes = modules.filter(isObject).map((m) => m.code);
+    need(codes.length === modules.length && codes.every(isText), 'every module needs a "code"');
+    need(new Set(codes).size === codes.length, 'duplicate module codes');
+    const missing = used.filter((code) => !codes.includes(code));
+    need(missing.length === 0, `tables use modules that "modules" does not list: ${missing.join(', ')}`);
+    const unused = codes.filter((code) => !used.includes(code));
+    need(unused.length === 0, `modules without tables: ${unused.join(', ')}`);
+    modules = modules.filter(isObject).map((m) => ({ code: m.code, name: m.name || m.code }));
+  }
+  if (problems.length > 0) throw new SchemaError(problems.join('\n'));
+  return { title: raw.title || WORDS[lang].database, lang, modules, tables: clean, refs: cleanRefs };
+}
+
+function slugger(fallback) {                       // a unique address slug for each text
+  const taken = new Set();
+  return (text) => {
+    let base = text.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || `${fallback}-${taken.size + 1}`;
+    if (RESERVED_SLUGS.has(base) || base.startsWith('comment-')) base = `${fallback}-${base}`;
+    let candidate = base;
+    for (let n = 2; taken.has(candidate); n++) candidate = `${base}-${n}`;
+    taken.add(candidate);
+    return candidate;
+  };
+}
+
+// ---------- layout ----------
+const cardHeight = (count) => LAYOUT.cardHead + LAYOUT.row * count;
+function rectsIntersect(a, b, gap = 0) {          // two {x, y, w, h} rectangles overlap, or come closer than gap
+  return a.x < b.x + b.w + gap && a.x + a.w + gap > b.x && a.y < b.y + b.h + gap && a.y + a.h + gap > b.y;
+}
+function hueOf(color) {
+  const [r, g, b] = [1, 3, 5].map((i) => parseInt(color.slice(i, i + 2), 16) / 255);
+  const max = Math.max(r, g, b), min = Math.min(r, g, b), d = max - min;
+  if (d === 0) return 0;
+  const h = max === r ? ((g - b) / d) % 6 : max === g ? (b - r) / d + 2 : (r - g) / d + 4;
+  return ((h * 60) + 360) % 360;
+}
+const PALETTE_HUE = new Map(PALETTE.map((pair) => [pair, hueOf(pair[0])]));
+function hueDistance(a, b) {
+  const d = Math.abs(PALETTE_HUE.get(a) - PALETTE_HUE.get(b));
+  return Math.min(d, 360 - d);
+}
+// A colour per module such that neighbouring areas on the overview differ in hue: backtracking, the module with
+// most neighbours first. Colours are unique while there are enough of them; past that, only neighbours differ.
+function assignColors(codes, rects) {
+  const neighbours = new Map(codes.map((c) => [c, codes.filter((o) => o !== c && rectsIntersect(rects[c], rects[o], LAYOUT.areaGap + 1))]));
+  const order = [...codes].sort((a, b) => neighbours.get(b).length - neighbours.get(a).length);
+  const unique = codes.length <= PALETTE.length;
+  const chosen = new Map();
+  const place = (i) => {
+    if (i === order.length) return true;
+    const code = order[i];
+    const taken = new Set(chosen.values());
+    for (const pair of PALETTE) {
+      if (unique && taken.has(pair)) continue;
+      if (neighbours.get(code).every((o) => !chosen.has(o) || hueDistance(pair, chosen.get(o)) >= NEIGHBOUR_HUE_MIN)) {
+        chosen.set(code, pair);
+        if (place(i + 1)) return true;
+        chosen.delete(code);
+      }
+    }
+    return false;
+  };
+  if (!place(0)) throw new Error('could not colour the modules so that neighbouring areas differ in hue');
+  return chosen;
+}
+function columnCount(items, target) {              // card columns so that none is taller than target
+  const total = items.reduce((sum, [, h]) => sum + h, 0) + LAYOUT.gapY * (items.length - 1);
+  return Math.min(items.length, Math.max(1, Math.ceil(total / target)));
+}
+function pack(items, columns) {                    // items: [[id, height]] → area size and card places
+  const filled = new Array(columns).fill(0), places = [];
+  for (const [id, h] of items) {
+    let col = 0;
+    for (let i = 1; i < columns; i++) if (filled[i] < filled[col]) col = i;
+    places.push([id, col * (LAYOUT.cardW + LAYOUT.gapX), filled[col]]);
+    filled[col] += h + LAYOUT.gapY;
+  }
+  return { w: columns * LAYOUT.cardW + (columns - 1) * LAYOUT.gapX + 2 * LAYOUT.areaPad,
+    h: Math.max(...filled) - LAYOUT.gapY + LAYOUT.areaTop + LAYOUT.areaPad, places };
+}
+// first closeness to the window proportions (coarse), then the smallest area
+const aspectScore = (w, h) => [Math.round(Math.abs(Math.log((w / h) / LAYOUT.viewAspect)) * 10) / 10, w * h];
+const better = (a, b) => b === null || a[0] < b[0] || (a[0] === b[0] && a[1] < b[1]);
+function targets(heights) {                        // column heights to try, every 100: tallest card … one column
+  const tallest = Math.max(...heights);
+  const total = heights.reduce((s, h) => s + h, 0) + LAYOUT.gapY * heights.length;
+  const out = [];
+  for (let t = tallest; t <= Math.max(tallest, Math.min(total, LAYOUT.maxTarget)); t += 100) out.push(t);
+  return out;
+}
+function* combinations(values, k, start = 0, picked = []) {
+  if (picked.length === k) { yield picked; return; }
+  for (let i = start; i < values.length; i++) yield* combinations(values, k, i + 1, [...picked, values[i]]);
+}
+function layoutOverview(codes, itemsByModule) {
+  const heights = codes.flatMap((c) => itemsByModule[c].map(([, h]) => h));
+  const packs = new Map();                         // a packing depends only on the column count: keep each once
+  let best = null;
+  const cutPoints = codes.map((_, i) => i).slice(1);
+  for (const target of targets(heights)) {
+    const packed = {};
+    for (const c of codes) {
+      const key = `${c}|${columnCount(itemsByModule[c], target)}`;
+      if (!packs.has(key)) packs.set(key, pack(itemsByModule[c], columnCount(itemsByModule[c], target)));
+      packed[c] = packs.get(key);
+    }
+    // 1–3 modules fit one row; from 4 on, one row makes tall narrow areas whose names get cut
+    for (let rows = codes.length <= 3 ? 1 : 2; rows <= Math.min(codes.length, LAYOUT.maxRows); rows++) {
+      for (const cuts of combinations(cutPoints, rows - 1)) {
+        const bounds = [0, ...cuts, codes.length];
+        const groups = bounds.slice(1).map((end, i) => codes.slice(bounds[i], end));
+        const widths = groups.map((g) => g.reduce((s, c) => s + packed[c].w, 0) + LAYOUT.areaGap * (g.length - 1));
+        const rowHeights = groups.map((g) => Math.max(...g.map((c) => packed[c].h)));
+        const score = aspectScore(Math.max(...widths), rowHeights.reduce((s, h) => s + h, 0) + LAYOUT.areaGap * (rows - 1));
+        if (better(score, best && best.score)) best = { score, packed, groups, rowHeights };
+      }
+    }
+  }
+  const areas = {}, positions = {};
+  let y = 0;
+  best.groups.forEach((group, row) => {
+    let x = 0;
+    for (const code of group) {
+      const p = best.packed[code];
+      areas[code] = { x, y, w: p.w, h: best.rowHeights[row] };
+      for (const [id, dx, dy] of p.places) positions[id] = [x + LAYOUT.areaPad + dx, y + LAYOUT.areaTop + dy];
+      x += p.w + LAYOUT.areaGap;
+    }
+    y += best.rowHeights[row] + LAYOUT.areaGap;
+  });
+  return { areas, positions };
+}
+// own: [[id, height]] of the module; otherGroups: [[module code, [[id, height]]]] — tables of other modules it
+// references, one area per module. Those areas stack in columns to the right, no taller than the module's own area.
+function layoutModule(own, otherGroups) {
+  const heights = [...own.map(([, h]) => h), ...otherGroups.flatMap(([, items]) => items.map(([, h]) => h))];
+  let best = null;
+  for (const target of targets(heights)) {
+    const a = pack(own, columnCount(own, target));
+    const columns = [];
+    let column = null;
+    for (const [code, items] of otherGroups) {
+      const p = pack(items, columnCount(items, Math.max(a.h - LAYOUT.areaTop - LAYOUT.areaPad, ...items.map(([, h]) => h))));
+      if (column === null || (column.items.length > 0 && column.h + LAYOUT.areaGap + p.h > a.h)) {
+        column = { w: 0, h: -LAYOUT.areaGap, items: [] };
+        columns.push(column);
+      }
+      column.items.push([code, p, column.h + LAYOUT.areaGap]);
+      column.h += LAYOUT.areaGap + p.h;
+      column.w = Math.max(column.w, p.w);
+    }
+    const w = a.w + columns.reduce((s, c) => s + LAYOUT.areaGap + c.w, 0);
+    const h = Math.max(a.h, ...columns.map((c) => c.h));
+    const score = aspectScore(w, h);
+    if (better(score, best && best.score)) best = { score, a, columns, h };
+  }
+  const { a, columns, h } = best;
+  const areas = { own: { x: 0, y: 0, w: a.w, h } };
+  const positions = {};
+  for (const [id, dx, dy] of a.places) positions[id] = [LAYOUT.areaPad + dx, LAYOUT.areaTop + dy];
+  let x = a.w;
+  for (const column of columns) {
+    x += LAYOUT.areaGap;
+    for (const [code, p, y] of column.items) {
+      areas[code] = { x, y, w: p.w, h: p.h };
+      for (const [id, dx, dy] of p.places) positions[id] = [x + LAYOUT.areaPad + dx, y + LAYOUT.areaTop + dy];
+    }
+    x += column.w;
+  }
+  return { areas, positions };
+}
+
+// One diagram: areas, cards (columns shown on each), references between card rows; check() proves the geometry.
+class DiagramBuilder {
+  constructor(code, mode, slug, name, label, module) {
+    this.data = { code, mode, slug, name, label, module, areas: [], tables: [], refs: [] };
+    this.tableIndex = new Map(); this.columnIndex = new Map(); this.tableArea = []; this.rows = 0;
+  }
+  addArea(name, rect, module) {
+    this.data.areas.push({ name, module, ...rect, count: 0 });
+    return this.data.areas.length - 1;
+  }
+  addTable(t, shown, [x, y], area) {             // shown: names of the columns that go on the card
+    const indexes = t.columns.map((c, i) => (shown.has(c.name) ? i : -1)).filter((i) => i >= 0);
+    this.tableIndex.set(t.id, this.data.tables.length);
+    this.columnIndex.set(t.id, new Map(indexes.map((i, n) => [t.columns[i].name, n])));
+    this.tableArea.push(area);
+    this.data.areas[area].count++;
+    this.rows += indexes.length;
+    const entry = { id: t.id, x, y, h: cardHeight(indexes.length) };
+    if (indexes.length < t.columns.length) entry.cols = indexes;   // short card: indexes of the shown columns
+    this.data.tables.push(entry);
+  }
+  addRef({ from, to }) {
+    this.data.refs.push([this.tableIndex.get(from.table), this.columnIndex.get(from.table).get(from.columns[0]),
+      this.tableIndex.get(to.table), this.columnIndex.get(to.table).get(to.columns[0])]);
+  }
+  check(expectTables, expectRefs, expectAreas) {
+    const d = this.data;
+    const got = [d.tables.length, d.refs.length, d.areas.length];
+    if (got.join() !== [expectTables, expectRefs, expectAreas].join()) {
+      throw new Error(`${d.name}: tables, references, areas ${got.join(', ')}, expected ${[expectTables, expectRefs, expectAreas].join(', ')}`);
+    }
+    const cards = d.tables.map((t) => ({ x: t.x, y: t.y, w: LAYOUT.cardW, h: t.h, id: t.id }));
+    let overlaps = 0;
+    for (let i = 0; i < cards.length; i++) for (let j = i + 1; j < cards.length; j++) if (rectsIntersect(cards[i], cards[j])) overlaps++;
+    if (overlaps) throw new Error(`${d.name}: ${overlaps} pairs of cards overlap`);
+    cards.forEach((card, n) => {
+      const holders = d.areas.map((a, i) => (card.x >= a.x && card.y >= a.y && card.x + card.w <= a.x + a.w
+        && card.y + card.h <= a.y + a.h ? i : -1)).filter((i) => i >= 0);
+      if (holders.length !== 1 || holders[0] !== this.tableArea[n]) throw new Error(`${d.name}: table ${card.id} is outside its area`);
+    });
+    for (let i = 0; i < d.areas.length; i++) for (let j = i + 1; j < d.areas.length; j++) {
+      if (rectsIntersect(d.areas[i], d.areas[j])) throw new Error(`${d.name}: areas overlap: ${d.areas[i].name} and ${d.areas[j].name}`);
+    }
+    d.size = [Math.max(...d.areas.map((a) => a.x + a.w)), Math.max(...d.areas.map((a) => a.y + a.h))];
+    return `${d.name} [${d.mode}]: ${got[0]} tables, ${this.rows} column rows, ${got[1]} references, ${got[2]} areas, ${d.size[0]}×${d.size[1]}`;
+  }
+}
+
+function layoutSchema(raw) {
+  const schema = checkSchema(raw);
+  const words = WORDS[schema.lang];
+  const { title, modules, tables, refs } = schema;
+  const codes = modules.map((m) => m.code);
+  const moduleName = new Map(modules.map((m) => [m.code, m.name]));
+  const byId = new Map(tables.map((t) => [t.id, t]));
+  const columnsTotal = tables.reduce((s, t) => s + t.columns.length, 0);
+  const referenced = new Map(), fkColumns = new Map(tables.map((t) => [t.id, new Set()]));
+  for (const r of refs) {
+    referenced.set(r.to.table, (referenced.get(r.to.table) || 0) + 1);
+    for (const c of r.from.columns) fkColumns.get(r.from.table).add(c);
+  }
+  const byName = (a, b) => (a < b ? -1 : a > b ? 1 : 0);
+  // most referenced tables first: they land at the top of their area
+  const byModule = Object.fromEntries(codes.map((c) => [c, tables.filter((t) => t.module === c)
+    .sort((a, b) => (referenced.get(b.id) || 0) - (referenced.get(a.id) || 0) || byName(a.name, b.name))]));
+  // keys view: primary key and both ends of every reference
+  const keys = new Map(tables.map((t) => [t.id, new Set(t.columns.filter((c) => c.pk).map((c) => c.name))]));
+  for (const r of refs) for (const end of [r.from, r.to]) for (const c of end.columns) keys.get(end.table).add(c);
+  const keysTotal = [...keys.values()].reduce((s, k) => s + k.size, 0);
+  const diagramSlug = slugger('diagram'), tableSlug = slugger('table');
+  const slugs = Object.fromEntries(['overview', ...codes].map((c) => [c, diagramSlug(c)]));
+  const diagrams = [], summary = [];
+  let colors = null, inner = 0, outer = 0;
+  for (const mode of MODES) {
+    const shown = (t) => (mode === 'all' ? new Set(t.columns.map((c) => c.name)) : keys.get(t.id));
+    let d = new DiagramBuilder('overview', mode, slugs.overview, `${title} — ${words.overview.toLowerCase()}`, words.overview, null);
+    const overview = layoutOverview(codes, Object.fromEntries(codes.map((c) => [c, byModule[c].map((t) => [t.id, cardHeight(shown(t).size)])])));
+    if (mode === 'all') colors = assignColors(codes, overview.areas);   // the same colours in both views
+    const areaOf = Object.fromEntries(codes.map((c) => [c, d.addArea(moduleName.get(c), overview.areas[c], c)]));
+    for (const t of tables) d.addTable(t, shown(t), overview.positions[t.id], areaOf[t.module]);
+    for (const r of refs) d.addRef(r);
+    summary.push(d.check(tables.length, refs.length, codes.length));
+    if (d.rows !== (mode === 'all' ? columnsTotal : keysTotal)) throw new Error(`overview (${mode}): column rows differ from the schema`);
+    diagrams.push(d.data);
+
+    for (const code of codes.length > 1 ? codes : []) {
+      d = new DiagramBuilder(code, mode, slugs[code], `${title} — ${moduleName.get(code)}`, moduleName.get(code), code);
+      const own = byModule[code];
+      const ownIds = new Set(own.map((t) => t.id));
+      const touching = refs.filter((r) => ownIds.has(r.from.table) || ownIds.has(r.to.table));
+      if (mode === 'all') {
+        const within = touching.filter((r) => ownIds.has(r.from.table) && ownIds.has(r.to.table)).length;
+        inner += within;
+        outer += touching.length - within;
+      }
+      const otherColumns = new Map();
+      for (const r of touching) for (const end of [r.from, r.to]) {
+        if (ownIds.has(end.table)) continue;
+        if (!otherColumns.has(end.table)) otherColumns.set(end.table, new Set());
+        for (const c of end.columns) otherColumns.get(end.table).add(c);
+      }
+      const others = [...otherColumns.keys()].map((id) => byId.get(id))
+        .sort((a, b) => codes.indexOf(a.module) - codes.indexOf(b.module) || byName(a.name, b.name));
+      const otherCodes = codes.filter((c) => others.some((t) => t.module === c));
+      const layout = layoutModule(own.map((t) => [t.id, cardHeight(shown(t).size)]),
+        otherCodes.map((c) => [c, others.filter((t) => t.module === c).map((t) => [t.id, cardHeight(otherColumns.get(t.id).size)])]));
+      const ownArea = d.addArea(moduleName.get(code), layout.areas.own, code);
+      for (const t of own) d.addTable(t, shown(t), layout.positions[t.id], ownArea);
+      const otherArea = Object.fromEntries(otherCodes.map((c) => [c, d.addArea(moduleName.get(c), layout.areas[c], c)]));
+      for (const t of others) d.addTable(t, otherColumns.get(t.id), layout.positions[t.id], otherArea[t.module]);
+      for (const r of touching) d.addRef(r);
+      summary.push(d.check(own.length + others.length, touching.length, 1 + otherCodes.length));
+      diagrams.push(d.data);
+    }
+  }
+  if (codes.length > 1 && (inner + Math.floor(outer / 2) !== refs.length || outer % 2)) {
+    throw new Error(`references by module do not add up: inside ${inner}, outward ${outer}`);
+  }
+  // shared table list: columns with notes and foreign-key targets; diagrams point into it by id
+  const linkTargets = new Map();
+  for (const r of refs) r.from.columns.forEach((column, i) => {
+    const key = `${r.from.table}\u0000${column}`;
+    if (!linkTargets.has(key)) linkTargets.set(key, []);
+    const links = linkTargets.get(key);
+    if (!links.some(([t, c]) => t === r.to.table && c === r.to.columns[i])) links.push([r.to.table, r.to.columns[i]]);
+  });
+  const registry = {};
+  let notes = 0;
+  for (const t of tables) {
+    const columns = t.columns.map((c) => {
+      const item = [c.name, c.type, (c.pk ? FLAG.PK : 0) | (fkColumns.get(t.id).has(c.name) ? FLAG.FK : 0) | (c.nullable ? FLAG.NULLABLE : 0), c.note];
+      if (c.note) notes++;
+      const links = linkTargets.get(`${t.id}\u0000${c.name}`);
+      if (links) item.push(links);
+      return item;
+    });
+    registry[t.id] = { name: t.name, slug: tableSlug(t.id), module: t.module, status: t.status, title: t.title, note: t.note, columns };
+  }
+  const data = {
+    lang: schema.lang,
+    card: { width: LAYOUT.cardW, head: LAYOUT.cardHead, row: LAYOUT.row, areaTop: LAYOUT.areaTop, areaPad: LAYOUT.areaPad, areaGap: LAYOUT.areaGap },
+    modules: codes.map((c) => ({ code: c, name: moduleName.get(c), dark: colors.get(c)[0], light: colors.get(c)[1] })),
+    tables: registry, diagrams,
+  };
+  summary.push(`column notes: ${notes} of ${columnsTotal}`,
+    `tables ${tables.length}, columns ${columnsTotal}, references ${refs.length}, modules ${codes.length}`);
+  if (codes.length > 1) summary.push(`references inside modules ${inner}, between modules ${Math.floor(outer / 2)}`);
+  summary.push('cards overlap: 0; every table inside its area; areas do not overlap');
+  return { data, summary };
+}
+</script>
 <script>
 'use strict';
 /*
  * Просмотрщик схемы на одном <canvas>: ни одного узла DOM на таблицу, столбец или связь.
- * Данные встроены выше (их кладёт build_diagram.py): размеры карточки, модули с цветами, диаграммы в двух видах.
+ * Схема (schema.json) дописана в конец страницы; ядро выше (schemap-core) проверяет её и раскладывает в диаграммы.
  * Рисуется только то, что попадает в окно. Чем мельче масштаб, тем проще карточка:
  * цветной прямоугольник → шапка с именем → полоски вместо строк → строки с текстом.
  * Для проверок из консоли — window.__diagram.
  */
-const PK = 1, FK = 2, NULLABLE = 4;
+const { PK, FK, NULLABLE } = FLAG;   // пометки столбца, как их пишет ядро
 // Interface strings. The language comes from the embedded data ("lang"); a new language is one more entry here.
 const STRINGS = {
   en: {
@@ -318,7 +740,7 @@ const STRINGS = {
     searchLabel: 'Find a table', zoom: 'Zoom', zoomOut: 'Zoom out', zoomIn: 'Zoom in', fit: 'Fit',
     details: 'Table details', copyLink: 'Copy link', copied: 'Link copied', close: 'Close',
     columns: 'Columns', incoming: 'Referenced by', notFound: 'Not found', required: 'required',
-    allTables: 'All tables', failure: 'The diagram did not open. Reload the page.',
+    allTables: 'All tables', failure: 'The diagram did not open.',
     modeMenu: 'Columns shown', modeAll: 'All columns', modeKeys: 'Keys only', minimap: 'Diagram map',
     statusLabel: { new: 'new', changed: 'changes', same: '' },                  // mark in the card header
     statusName: { new: 'new', changed: 'changes', same: 'unchanged' },          // status in the details panel
@@ -329,7 +751,7 @@ const STRINGS = {
     searchLabel: 'Поиск таблицы', zoom: 'Масштаб', zoomOut: 'Уменьшить', zoomIn: 'Увеличить', fit: 'Весь вид',
     details: 'Описание таблицы', copyLink: 'Скопировать ссылку', copied: 'Ссылка скопирована', close: 'Закрыть',
     columns: 'Столбцы', incoming: 'Ссылаются сюда', notFound: 'Не найдено', required: 'обязательный',
-    allTables: 'Все таблицы', failure: 'Схема не открылась. Обновите страницу.',
+    allTables: 'Все таблицы', failure: 'Схема не открылась.',
     modeMenu: 'Какие столбцы показать', modeAll: 'Все столбцы', modeKeys: 'Только ключи', minimap: 'Карта схемы',
     statusLabel: { new: 'новая', changed: 'меняется', same: '' },
     statusName: { new: 'новая', changed: 'меняется', same: 'без изменений' },
@@ -1477,7 +1899,9 @@ document.addEventListener('keydown', (event) => {
 
 // ---------- запуск ----------
 function start() {
-  DATA = JSON.parse(document.getElementById('diagram-data').textContent);
+  const source = document.getElementById('schema');
+  if (!source) throw new Error('no schema on the page: it goes after the viewer, in a JSON script element with id "schema"');
+  DATA = layoutSchema(JSON.parse(source.textContent)).data;
   applyStrings(DATA.lang);
   CARD = DATA.card;
   MODULES = new Map(DATA.modules.map((m) => [m.code, m]));
@@ -1508,15 +1932,3292 @@ function start() {
   new MutationObserver(refreshTheme).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
   window.__diagram = { view, draw, fit, pan, zoomAt, gesture, select, showTable, goToTable, openDiagram, openAddress, address, setMode, refreshTheme };   // для проверок из консоли
 }
-try {
-  start();
-} catch (error) {
-  console.error(error);
-  for (const id of ['diagram-panel', 'status-panel', 'mode-panel', 'minimap-panel', 'search-panel', 'zoom-panel', 'details', 'tip', 'canvas']) document.getElementById(id).hidden = true;
-  document.getElementById('failure-text').textContent = TEXT.failure;
-  document.getElementById('failure-reason').textContent = error && error.message ? error.message : String(error);
-  document.getElementById('failure').hidden = false;
-}
+// схема дописана в конец страницы, после этого кода, — старт, когда страница прочитана целиком
+document.addEventListener('DOMContentLoaded', () => {
+  try {
+    start();
+  } catch (error) {
+    console.error(error);
+    for (const id of ['top-left', 'minimap-panel', 'search-panel', 'zoom-panel', 'details', 'tip', 'canvas']) document.getElementById(id).hidden = true;
+    document.getElementById('failure-text').textContent = TEXT.failure;
+    document.getElementById('failure-reason').textContent = error && error.message ? error.message : String(error);
+    document.getElementById('failure').hidden = false;
+  }
+});
 </script>
-</body>
-</html>
+<script id="schema" type="application/json">{
+ "title": "Storefront",
+ "lang": "en",
+ "modules": [
+  {
+   "code": "accounts",
+   "name": "Accounts and teams"
+  },
+  {
+   "code": "catalog",
+   "name": "Catalog"
+  },
+  {
+   "code": "orders",
+   "name": "Orders and carts"
+  },
+  {
+   "code": "payments",
+   "name": "Payments"
+  },
+  {
+   "code": "shipping",
+   "name": "Shipping"
+  },
+  {
+   "code": "support",
+   "name": "Support and returns"
+  },
+  {
+   "code": "marketing",
+   "name": "Marketing and reviews"
+  },
+  {
+   "code": "analytics",
+   "name": "Analytics"
+  }
+ ],
+ "tables": [
+  {
+   "id": "accounts.users",
+   "name": "users",
+   "module": "accounts",
+   "title": "Customers and staff",
+   "note": "",
+   "status": "same",
+   "columns": [
+    {
+     "name": "id",
+     "type": "uuid",
+     "pk": true,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "email",
+     "type": "varchar(320)",
+     "pk": false,
+     "nullable": false,
+     "note": "Sign-in address, unique"
+    },
+    {
+     "name": "full_name",
+     "type": "text",
+     "pk": false,
+     "nullable": true,
+     "note": ""
+    },
+    {
+     "name": "phone",
+     "type": "varchar(32)",
+     "pk": false,
+     "nullable": true,
+     "note": ""
+    },
+    {
+     "name": "role",
+     "type": "text",
+     "pk": false,
+     "nullable": false,
+     "note": "customer, staff or admin"
+    },
+    {
+     "name": "created_at",
+     "type": "timestamptz",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "deleted_at",
+     "type": "timestamptz",
+     "pk": false,
+     "nullable": true,
+     "note": "Soft delete"
+    }
+   ]
+  },
+  {
+   "id": "accounts.sessions",
+   "name": "sessions",
+   "module": "accounts",
+   "title": "Sign-in sessions",
+   "note": "",
+   "status": "same",
+   "columns": [
+    {
+     "name": "id",
+     "type": "uuid",
+     "pk": true,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "user_id",
+     "type": "uuid",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "device",
+     "type": "text",
+     "pk": false,
+     "nullable": true,
+     "note": ""
+    },
+    {
+     "name": "expires_at",
+     "type": "timestamptz",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "created_at",
+     "type": "timestamptz",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    }
+   ]
+  },
+  {
+   "id": "accounts.password_resets",
+   "name": "password_resets",
+   "module": "accounts",
+   "title": "Password reset links",
+   "note": "",
+   "status": "same",
+   "columns": [
+    {
+     "name": "id",
+     "type": "uuid",
+     "pk": true,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "user_id",
+     "type": "uuid",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "token_hash",
+     "type": "bytea",
+     "pk": false,
+     "nullable": false,
+     "note": "Only the hash is stored"
+    },
+    {
+     "name": "expires_at",
+     "type": "timestamptz",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "used_at",
+     "type": "timestamptz",
+     "pk": false,
+     "nullable": true,
+     "note": ""
+    }
+   ]
+  },
+  {
+   "id": "accounts.teams",
+   "name": "teams",
+   "module": "accounts",
+   "title": "Seller teams",
+   "note": "",
+   "status": "same",
+   "columns": [
+    {
+     "name": "id",
+     "type": "uuid",
+     "pk": true,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "name",
+     "type": "text",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "owner_id",
+     "type": "uuid",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "plan",
+     "type": "text",
+     "pk": false,
+     "nullable": false,
+     "note": "free, pro or business"
+    },
+    {
+     "name": "created_at",
+     "type": "timestamptz",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    }
+   ]
+  },
+  {
+   "id": "accounts.team_members",
+   "name": "team_members",
+   "module": "accounts",
+   "title": "Team members",
+   "note": "",
+   "status": "same",
+   "columns": [
+    {
+     "name": "team_id",
+     "type": "uuid",
+     "pk": true,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "user_id",
+     "type": "uuid",
+     "pk": true,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "role",
+     "type": "text",
+     "pk": false,
+     "nullable": false,
+     "note": "owner, admin or editor"
+    },
+    {
+     "name": "invited_at",
+     "type": "timestamptz",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    }
+   ]
+  },
+  {
+   "id": "accounts.api_tokens",
+   "name": "api_tokens",
+   "module": "accounts",
+   "title": "API tokens",
+   "note": "Lets sellers connect their own tools",
+   "status": "new",
+   "columns": [
+    {
+     "name": "id",
+     "type": "uuid",
+     "pk": true,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "team_id",
+     "type": "uuid",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "name",
+     "type": "text",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "token_hash",
+     "type": "bytea",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "last_used_at",
+     "type": "timestamptz",
+     "pk": false,
+     "nullable": true,
+     "note": ""
+    },
+    {
+     "name": "revoked_at",
+     "type": "timestamptz",
+     "pk": false,
+     "nullable": true,
+     "note": ""
+    }
+   ]
+  },
+  {
+   "id": "accounts.audit_log",
+   "name": "audit_log",
+   "module": "accounts",
+   "title": "Audit log",
+   "note": "",
+   "status": "same",
+   "columns": [
+    {
+     "name": "id",
+     "type": "bigint",
+     "pk": true,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "actor_id",
+     "type": "uuid",
+     "pk": false,
+     "nullable": true,
+     "note": ""
+    },
+    {
+     "name": "action",
+     "type": "text",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "subject_type",
+     "type": "text",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "subject_id",
+     "type": "uuid",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "created_at",
+     "type": "timestamptz",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    }
+   ]
+  },
+  {
+   "id": "catalog.brands",
+   "name": "brands",
+   "module": "catalog",
+   "title": "Makers",
+   "note": "",
+   "status": "same",
+   "columns": [
+    {
+     "name": "id",
+     "type": "integer",
+     "pk": true,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "name",
+     "type": "text",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "slug",
+     "type": "text",
+     "pk": false,
+     "nullable": false,
+     "note": "Used in URLs"
+    }
+   ]
+  },
+  {
+   "id": "catalog.categories",
+   "name": "categories",
+   "module": "catalog",
+   "title": "Category tree",
+   "note": "",
+   "status": "same",
+   "columns": [
+    {
+     "name": "id",
+     "type": "integer",
+     "pk": true,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "parent_id",
+     "type": "integer",
+     "pk": false,
+     "nullable": true,
+     "note": "Empty for a top-level category"
+    },
+    {
+     "name": "name",
+     "type": "text",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "slug",
+     "type": "text",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "position",
+     "type": "integer",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    }
+   ]
+  },
+  {
+   "id": "catalog.products",
+   "name": "products",
+   "module": "catalog",
+   "title": "Items for sale",
+   "note": "One product, sold in one or more variants",
+   "status": "changed",
+   "columns": [
+    {
+     "name": "id",
+     "type": "uuid",
+     "pk": true,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "team_id",
+     "type": "uuid",
+     "pk": false,
+     "nullable": false,
+     "note": "The seller"
+    },
+    {
+     "name": "category_id",
+     "type": "integer",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "brand_id",
+     "type": "integer",
+     "pk": false,
+     "nullable": true,
+     "note": ""
+    },
+    {
+     "name": "title",
+     "type": "text",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "description",
+     "type": "text",
+     "pk": false,
+     "nullable": true,
+     "note": ""
+    },
+    {
+     "name": "status",
+     "type": "text",
+     "pk": false,
+     "nullable": false,
+     "note": "draft, active or archived"
+    },
+    {
+     "name": "created_at",
+     "type": "timestamptz",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "updated_at",
+     "type": "timestamptz",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    }
+   ]
+  },
+  {
+   "id": "catalog.product_variants",
+   "name": "product_variants",
+   "module": "catalog",
+   "title": "Sizes and colours",
+   "note": "",
+   "status": "same",
+   "columns": [
+    {
+     "name": "id",
+     "type": "uuid",
+     "pk": true,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "product_id",
+     "type": "uuid",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "sku",
+     "type": "text",
+     "pk": false,
+     "nullable": false,
+     "note": "Seller's stock code"
+    },
+    {
+     "name": "size",
+     "type": "text",
+     "pk": false,
+     "nullable": true,
+     "note": ""
+    },
+    {
+     "name": "color",
+     "type": "text",
+     "pk": false,
+     "nullable": true,
+     "note": ""
+    },
+    {
+     "name": "price",
+     "type": "numeric(12,2)",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "compare_at_price",
+     "type": "numeric(12,2)",
+     "pk": false,
+     "nullable": true,
+     "note": "Old price shown crossed out"
+    },
+    {
+     "name": "weight_grams",
+     "type": "integer",
+     "pk": false,
+     "nullable": true,
+     "note": ""
+    }
+   ]
+  },
+  {
+   "id": "catalog.product_images",
+   "name": "product_images",
+   "module": "catalog",
+   "title": "Product photos",
+   "note": "",
+   "status": "same",
+   "columns": [
+    {
+     "name": "product_id",
+     "type": "uuid",
+     "pk": true,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "position",
+     "type": "integer",
+     "pk": true,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "url",
+     "type": "text",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "alt_text",
+     "type": "text",
+     "pk": false,
+     "nullable": true,
+     "note": ""
+    }
+   ]
+  },
+  {
+   "id": "catalog.tags",
+   "name": "tags",
+   "module": "catalog",
+   "title": "Search tags",
+   "note": "",
+   "status": "same",
+   "columns": [
+    {
+     "name": "id",
+     "type": "integer",
+     "pk": true,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "name",
+     "type": "text",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    }
+   ]
+  },
+  {
+   "id": "catalog.product_tags",
+   "name": "product_tags",
+   "module": "catalog",
+   "title": "Product tags",
+   "note": "",
+   "status": "same",
+   "columns": [
+    {
+     "name": "product_id",
+     "type": "uuid",
+     "pk": true,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "tag_id",
+     "type": "integer",
+     "pk": true,
+     "nullable": false,
+     "note": ""
+    }
+   ]
+  },
+  {
+   "id": "catalog.collections",
+   "name": "collections",
+   "module": "catalog",
+   "title": "Curated sets",
+   "note": "Hand-picked sets for the home page",
+   "status": "same",
+   "columns": [
+    {
+     "name": "id",
+     "type": "integer",
+     "pk": true,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "title",
+     "type": "text",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "starts_at",
+     "type": "timestamptz",
+     "pk": false,
+     "nullable": true,
+     "note": ""
+    },
+    {
+     "name": "ends_at",
+     "type": "timestamptz",
+     "pk": false,
+     "nullable": true,
+     "note": ""
+    }
+   ]
+  },
+  {
+   "id": "catalog.collection_products",
+   "name": "collection_products",
+   "module": "catalog",
+   "title": "Products in collections",
+   "note": "",
+   "status": "same",
+   "columns": [
+    {
+     "name": "collection_id",
+     "type": "integer",
+     "pk": true,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "product_id",
+     "type": "uuid",
+     "pk": true,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "position",
+     "type": "integer",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    }
+   ]
+  },
+  {
+   "id": "catalog.warehouses",
+   "name": "warehouses",
+   "module": "catalog",
+   "title": "Stock locations",
+   "note": "",
+   "status": "same",
+   "columns": [
+    {
+     "name": "id",
+     "type": "integer",
+     "pk": true,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "team_id",
+     "type": "uuid",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "name",
+     "type": "text",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "address_id",
+     "type": "uuid",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    }
+   ]
+  },
+  {
+   "id": "catalog.inventory_levels",
+   "name": "inventory_levels",
+   "module": "catalog",
+   "title": "Stock levels",
+   "note": "",
+   "status": "changed",
+   "columns": [
+    {
+     "name": "variant_id",
+     "type": "uuid",
+     "pk": true,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "warehouse_id",
+     "type": "integer",
+     "pk": true,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "on_hand",
+     "type": "integer",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "reserved",
+     "type": "integer",
+     "pk": false,
+     "nullable": false,
+     "note": "Held by unpaid orders"
+    }
+   ]
+  },
+  {
+   "id": "orders.carts",
+   "name": "carts",
+   "module": "orders",
+   "title": "Shopping carts",
+   "note": "",
+   "status": "same",
+   "columns": [
+    {
+     "name": "id",
+     "type": "uuid",
+     "pk": true,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "user_id",
+     "type": "uuid",
+     "pk": false,
+     "nullable": true,
+     "note": "Empty for a guest"
+    },
+    {
+     "name": "created_at",
+     "type": "timestamptz",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "updated_at",
+     "type": "timestamptz",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    }
+   ]
+  },
+  {
+   "id": "orders.cart_items",
+   "name": "cart_items",
+   "module": "orders",
+   "title": "Cart items",
+   "note": "",
+   "status": "same",
+   "columns": [
+    {
+     "name": "cart_id",
+     "type": "uuid",
+     "pk": true,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "variant_id",
+     "type": "uuid",
+     "pk": true,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "quantity",
+     "type": "integer",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    }
+   ]
+  },
+  {
+   "id": "orders.orders",
+   "name": "orders",
+   "module": "orders",
+   "title": "Customer orders",
+   "note": "One checkout with one seller",
+   "status": "changed",
+   "columns": [
+    {
+     "name": "id",
+     "type": "uuid",
+     "pk": true,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "number",
+     "type": "bigint",
+     "pk": false,
+     "nullable": false,
+     "note": "Shown to the customer"
+    },
+    {
+     "name": "user_id",
+     "type": "uuid",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "team_id",
+     "type": "uuid",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "status",
+     "type": "text",
+     "pk": false,
+     "nullable": false,
+     "note": "placed, paid, shipped, delivered or cancelled"
+    },
+    {
+     "name": "shipping_address_id",
+     "type": "uuid",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "subtotal",
+     "type": "numeric(12,2)",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "discount",
+     "type": "numeric(12,2)",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "total",
+     "type": "numeric(12,2)",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "currency",
+     "type": "char(3)",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "placed_at",
+     "type": "timestamptz",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    }
+   ]
+  },
+  {
+   "id": "orders.order_items",
+   "name": "order_items",
+   "module": "orders",
+   "title": "Order items",
+   "note": "",
+   "status": "same",
+   "columns": [
+    {
+     "name": "order_id",
+     "type": "uuid",
+     "pk": true,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "variant_id",
+     "type": "uuid",
+     "pk": true,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "quantity",
+     "type": "integer",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "unit_price",
+     "type": "numeric(12,2)",
+     "pk": false,
+     "nullable": false,
+     "note": "Price at the moment of purchase"
+    }
+   ]
+  },
+  {
+   "id": "orders.order_status_events",
+   "name": "order_status_events",
+   "module": "orders",
+   "title": "Order history",
+   "note": "",
+   "status": "same",
+   "columns": [
+    {
+     "name": "id",
+     "type": "bigint",
+     "pk": true,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "order_id",
+     "type": "uuid",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "from_status",
+     "type": "text",
+     "pk": false,
+     "nullable": true,
+     "note": ""
+    },
+    {
+     "name": "to_status",
+     "type": "text",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "actor_id",
+     "type": "uuid",
+     "pk": false,
+     "nullable": true,
+     "note": ""
+    },
+    {
+     "name": "created_at",
+     "type": "timestamptz",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    }
+   ]
+  },
+  {
+   "id": "orders.discounts",
+   "name": "discounts",
+   "module": "orders",
+   "title": "Discount codes",
+   "note": "",
+   "status": "same",
+   "columns": [
+    {
+     "name": "id",
+     "type": "integer",
+     "pk": true,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "team_id",
+     "type": "uuid",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "code",
+     "type": "text",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "percent",
+     "type": "integer",
+     "pk": false,
+     "nullable": true,
+     "note": ""
+    },
+    {
+     "name": "amount",
+     "type": "numeric(12,2)",
+     "pk": false,
+     "nullable": true,
+     "note": ""
+    },
+    {
+     "name": "starts_at",
+     "type": "timestamptz",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "ends_at",
+     "type": "timestamptz",
+     "pk": false,
+     "nullable": true,
+     "note": ""
+    },
+    {
+     "name": "usage_limit",
+     "type": "integer",
+     "pk": false,
+     "nullable": true,
+     "note": ""
+    }
+   ]
+  },
+  {
+   "id": "orders.discount_redemptions",
+   "name": "discount_redemptions",
+   "module": "orders",
+   "title": "Used discount codes",
+   "note": "",
+   "status": "same",
+   "columns": [
+    {
+     "name": "discount_id",
+     "type": "integer",
+     "pk": true,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "order_id",
+     "type": "uuid",
+     "pk": true,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "amount",
+     "type": "numeric(12,2)",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    }
+   ]
+  },
+  {
+   "id": "orders.gift_cards",
+   "name": "gift_cards",
+   "module": "orders",
+   "title": "Gift cards",
+   "note": "",
+   "status": "new",
+   "columns": [
+    {
+     "name": "id",
+     "type": "uuid",
+     "pk": true,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "code_hash",
+     "type": "bytea",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "balance",
+     "type": "numeric(12,2)",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "currency",
+     "type": "char(3)",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "purchased_by",
+     "type": "uuid",
+     "pk": false,
+     "nullable": true,
+     "note": ""
+    },
+    {
+     "name": "expires_at",
+     "type": "timestamptz",
+     "pk": false,
+     "nullable": true,
+     "note": ""
+    }
+   ]
+  },
+  {
+   "id": "payments.payment_methods",
+   "name": "payment_methods",
+   "module": "payments",
+   "title": "Saved cards",
+   "note": "",
+   "status": "same",
+   "columns": [
+    {
+     "name": "id",
+     "type": "uuid",
+     "pk": true,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "user_id",
+     "type": "uuid",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "provider",
+     "type": "text",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "provider_ref",
+     "type": "text",
+     "pk": false,
+     "nullable": false,
+     "note": "Token from the provider, never the card number"
+    },
+    {
+     "name": "last4",
+     "type": "char(4)",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "expires_on",
+     "type": "date",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    }
+   ]
+  },
+  {
+   "id": "payments.payments",
+   "name": "payments",
+   "module": "payments",
+   "title": "Card and gift card payments",
+   "note": "",
+   "status": "changed",
+   "columns": [
+    {
+     "name": "id",
+     "type": "uuid",
+     "pk": true,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "order_id",
+     "type": "uuid",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "method_id",
+     "type": "uuid",
+     "pk": false,
+     "nullable": true,
+     "note": ""
+    },
+    {
+     "name": "gift_card_id",
+     "type": "uuid",
+     "pk": false,
+     "nullable": true,
+     "note": ""
+    },
+    {
+     "name": "amount",
+     "type": "numeric(12,2)",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "status",
+     "type": "text",
+     "pk": false,
+     "nullable": false,
+     "note": "pending, captured or failed"
+    },
+    {
+     "name": "captured_at",
+     "type": "timestamptz",
+     "pk": false,
+     "nullable": true,
+     "note": ""
+    }
+   ]
+  },
+  {
+   "id": "payments.refunds",
+   "name": "refunds",
+   "module": "payments",
+   "title": "Money back",
+   "note": "",
+   "status": "same",
+   "columns": [
+    {
+     "name": "id",
+     "type": "uuid",
+     "pk": true,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "payment_id",
+     "type": "uuid",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "return_id",
+     "type": "uuid",
+     "pk": false,
+     "nullable": true,
+     "note": ""
+    },
+    {
+     "name": "amount",
+     "type": "numeric(12,2)",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "reason",
+     "type": "text",
+     "pk": false,
+     "nullable": true,
+     "note": ""
+    },
+    {
+     "name": "created_at",
+     "type": "timestamptz",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    }
+   ]
+  },
+  {
+   "id": "payments.invoices",
+   "name": "invoices",
+   "module": "payments",
+   "title": "Tax invoices",
+   "note": "",
+   "status": "same",
+   "columns": [
+    {
+     "name": "id",
+     "type": "uuid",
+     "pk": true,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "order_id",
+     "type": "uuid",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "number",
+     "type": "text",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "issued_at",
+     "type": "timestamptz",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "pdf_url",
+     "type": "text",
+     "pk": false,
+     "nullable": true,
+     "note": ""
+    }
+   ]
+  },
+  {
+   "id": "payments.invoice_lines",
+   "name": "invoice_lines",
+   "module": "payments",
+   "title": "Invoice lines",
+   "note": "",
+   "status": "same",
+   "columns": [
+    {
+     "name": "invoice_id",
+     "type": "uuid",
+     "pk": true,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "line",
+     "type": "integer",
+     "pk": true,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "description",
+     "type": "text",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "amount",
+     "type": "numeric(12,2)",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "tax_rate",
+     "type": "numeric(5,2)",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    }
+   ]
+  },
+  {
+   "id": "payments.payouts",
+   "name": "payouts",
+   "module": "payments",
+   "title": "Payouts to sellers",
+   "note": "",
+   "status": "new",
+   "columns": [
+    {
+     "name": "id",
+     "type": "uuid",
+     "pk": true,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "team_id",
+     "type": "uuid",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "amount",
+     "type": "numeric(12,2)",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "fee",
+     "type": "numeric(12,2)",
+     "pk": false,
+     "nullable": false,
+     "note": "Marketplace commission"
+    },
+    {
+     "name": "period_start",
+     "type": "date",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "period_end",
+     "type": "date",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "paid_at",
+     "type": "timestamptz",
+     "pk": false,
+     "nullable": true,
+     "note": ""
+    }
+   ]
+  },
+  {
+   "id": "shipping.addresses",
+   "name": "addresses",
+   "module": "shipping",
+   "title": "Delivery addresses",
+   "note": "",
+   "status": "same",
+   "columns": [
+    {
+     "name": "id",
+     "type": "uuid",
+     "pk": true,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "user_id",
+     "type": "uuid",
+     "pk": false,
+     "nullable": true,
+     "note": ""
+    },
+    {
+     "name": "line1",
+     "type": "text",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "line2",
+     "type": "text",
+     "pk": false,
+     "nullable": true,
+     "note": ""
+    },
+    {
+     "name": "city",
+     "type": "text",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "postcode",
+     "type": "text",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "country",
+     "type": "char(2)",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    }
+   ]
+  },
+  {
+   "id": "shipping.carriers",
+   "name": "carriers",
+   "module": "shipping",
+   "title": "Delivery companies",
+   "note": "",
+   "status": "same",
+   "columns": [
+    {
+     "name": "id",
+     "type": "integer",
+     "pk": true,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "name",
+     "type": "text",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "tracking_url",
+     "type": "text",
+     "pk": false,
+     "nullable": false,
+     "note": "With {number} in place of the tracking number"
+    }
+   ]
+  },
+  {
+   "id": "shipping.shipping_rates",
+   "name": "shipping_rates",
+   "module": "shipping",
+   "title": "Shipping prices",
+   "note": "",
+   "status": "same",
+   "columns": [
+    {
+     "name": "id",
+     "type": "integer",
+     "pk": true,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "carrier_id",
+     "type": "integer",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "country",
+     "type": "char(2)",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "max_weight_grams",
+     "type": "integer",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "price",
+     "type": "numeric(12,2)",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    }
+   ]
+  },
+  {
+   "id": "shipping.shipments",
+   "name": "shipments",
+   "module": "shipping",
+   "title": "Parcels",
+   "note": "",
+   "status": "same",
+   "columns": [
+    {
+     "name": "id",
+     "type": "uuid",
+     "pk": true,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "order_id",
+     "type": "uuid",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "carrier_id",
+     "type": "integer",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "tracking_number",
+     "type": "text",
+     "pk": false,
+     "nullable": true,
+     "note": ""
+    },
+    {
+     "name": "shipped_at",
+     "type": "timestamptz",
+     "pk": false,
+     "nullable": true,
+     "note": ""
+    },
+    {
+     "name": "delivered_at",
+     "type": "timestamptz",
+     "pk": false,
+     "nullable": true,
+     "note": ""
+    }
+   ]
+  },
+  {
+   "id": "shipping.shipment_items",
+   "name": "shipment_items",
+   "module": "shipping",
+   "title": "Items in a shipment",
+   "note": "",
+   "status": "same",
+   "columns": [
+    {
+     "name": "shipment_id",
+     "type": "uuid",
+     "pk": true,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "variant_id",
+     "type": "uuid",
+     "pk": true,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "quantity",
+     "type": "integer",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    }
+   ]
+  },
+  {
+   "id": "shipping.tracking_events",
+   "name": "tracking_events",
+   "module": "shipping",
+   "title": "Tracking events",
+   "note": "Received from the carrier",
+   "status": "new",
+   "columns": [
+    {
+     "name": "id",
+     "type": "bigint",
+     "pk": true,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "shipment_id",
+     "type": "uuid",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "status",
+     "type": "text",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "location",
+     "type": "text",
+     "pk": false,
+     "nullable": true,
+     "note": ""
+    },
+    {
+     "name": "happened_at",
+     "type": "timestamptz",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    }
+   ]
+  },
+  {
+   "id": "support.tickets",
+   "name": "tickets",
+   "module": "support",
+   "title": "Support tickets",
+   "note": "",
+   "status": "same",
+   "columns": [
+    {
+     "name": "id",
+     "type": "uuid",
+     "pk": true,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "user_id",
+     "type": "uuid",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "order_id",
+     "type": "uuid",
+     "pk": false,
+     "nullable": true,
+     "note": ""
+    },
+    {
+     "name": "assignee_id",
+     "type": "uuid",
+     "pk": false,
+     "nullable": true,
+     "note": ""
+    },
+    {
+     "name": "subject",
+     "type": "text",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "status",
+     "type": "text",
+     "pk": false,
+     "nullable": false,
+     "note": "open, waiting or closed"
+    },
+    {
+     "name": "created_at",
+     "type": "timestamptz",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    }
+   ]
+  },
+  {
+   "id": "support.ticket_messages",
+   "name": "ticket_messages",
+   "module": "support",
+   "title": "Ticket messages",
+   "note": "",
+   "status": "same",
+   "columns": [
+    {
+     "name": "id",
+     "type": "uuid",
+     "pk": true,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "ticket_id",
+     "type": "uuid",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "author_id",
+     "type": "uuid",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "body",
+     "type": "text",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "internal",
+     "type": "boolean",
+     "pk": false,
+     "nullable": false,
+     "note": "Seen by staff only"
+    },
+    {
+     "name": "created_at",
+     "type": "timestamptz",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    }
+   ]
+  },
+  {
+   "id": "support.returns",
+   "name": "returns",
+   "module": "support",
+   "title": "Return requests",
+   "note": "A customer sends items back",
+   "status": "new",
+   "columns": [
+    {
+     "name": "id",
+     "type": "uuid",
+     "pk": true,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "order_id",
+     "type": "uuid",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "reason",
+     "type": "text",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "status",
+     "type": "text",
+     "pk": false,
+     "nullable": false,
+     "note": "requested, approved, received or refunded"
+    },
+    {
+     "name": "requested_at",
+     "type": "timestamptz",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    }
+   ]
+  },
+  {
+   "id": "support.return_items",
+   "name": "return_items",
+   "module": "support",
+   "title": "Returned items",
+   "note": "",
+   "status": "new",
+   "columns": [
+    {
+     "name": "return_id",
+     "type": "uuid",
+     "pk": true,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "variant_id",
+     "type": "uuid",
+     "pk": true,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "quantity",
+     "type": "integer",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "condition",
+     "type": "text",
+     "pk": false,
+     "nullable": true,
+     "note": "Checked at the warehouse"
+    }
+   ]
+  },
+  {
+   "id": "marketing.reviews",
+   "name": "reviews",
+   "module": "marketing",
+   "title": "Product reviews",
+   "note": "",
+   "status": "same",
+   "columns": [
+    {
+     "name": "id",
+     "type": "uuid",
+     "pk": true,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "product_id",
+     "type": "uuid",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "user_id",
+     "type": "uuid",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "order_id",
+     "type": "uuid",
+     "pk": false,
+     "nullable": false,
+     "note": "Only buyers can review"
+    },
+    {
+     "name": "rating",
+     "type": "smallint",
+     "pk": false,
+     "nullable": false,
+     "note": "1 to 5"
+    },
+    {
+     "name": "body",
+     "type": "text",
+     "pk": false,
+     "nullable": true,
+     "note": ""
+    },
+    {
+     "name": "published_at",
+     "type": "timestamptz",
+     "pk": false,
+     "nullable": true,
+     "note": ""
+    }
+   ]
+  },
+  {
+   "id": "marketing.review_votes",
+   "name": "review_votes",
+   "module": "marketing",
+   "title": "Helpful votes",
+   "note": "",
+   "status": "same",
+   "columns": [
+    {
+     "name": "review_id",
+     "type": "uuid",
+     "pk": true,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "user_id",
+     "type": "uuid",
+     "pk": true,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "helpful",
+     "type": "boolean",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    }
+   ]
+  },
+  {
+   "id": "marketing.wishlists",
+   "name": "wishlists",
+   "module": "marketing",
+   "title": "Saved for later",
+   "note": "",
+   "status": "same",
+   "columns": [
+    {
+     "name": "user_id",
+     "type": "uuid",
+     "pk": true,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "variant_id",
+     "type": "uuid",
+     "pk": true,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "added_at",
+     "type": "timestamptz",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    }
+   ]
+  },
+  {
+   "id": "marketing.newsletter_subscriptions",
+   "name": "newsletter_subscriptions",
+   "module": "marketing",
+   "title": "Newsletter",
+   "note": "",
+   "status": "same",
+   "columns": [
+    {
+     "name": "email",
+     "type": "varchar(320)",
+     "pk": true,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "user_id",
+     "type": "uuid",
+     "pk": false,
+     "nullable": true,
+     "note": ""
+    },
+    {
+     "name": "confirmed_at",
+     "type": "timestamptz",
+     "pk": false,
+     "nullable": true,
+     "note": ""
+    },
+    {
+     "name": "unsubscribed_at",
+     "type": "timestamptz",
+     "pk": false,
+     "nullable": true,
+     "note": ""
+    }
+   ]
+  },
+  {
+   "id": "marketing.campaigns",
+   "name": "campaigns",
+   "module": "marketing",
+   "title": "Email campaigns",
+   "note": "",
+   "status": "new",
+   "columns": [
+    {
+     "name": "id",
+     "type": "uuid",
+     "pk": true,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "team_id",
+     "type": "uuid",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "subject",
+     "type": "text",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "collection_id",
+     "type": "integer",
+     "pk": false,
+     "nullable": true,
+     "note": ""
+    },
+    {
+     "name": "scheduled_at",
+     "type": "timestamptz",
+     "pk": false,
+     "nullable": true,
+     "note": ""
+    },
+    {
+     "name": "sent_at",
+     "type": "timestamptz",
+     "pk": false,
+     "nullable": true,
+     "note": ""
+    }
+   ]
+  },
+  {
+   "id": "analytics.product_views_daily",
+   "name": "product_views_daily",
+   "module": "analytics",
+   "title": "Product views by day",
+   "note": "",
+   "status": "same",
+   "columns": [
+    {
+     "name": "day",
+     "type": "date",
+     "pk": true,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "product_id",
+     "type": "uuid",
+     "pk": true,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "views",
+     "type": "integer",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "unique_visitors",
+     "type": "integer",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    }
+   ]
+  },
+  {
+   "id": "analytics.sales_daily",
+   "name": "sales_daily",
+   "module": "analytics",
+   "title": "Sales by day",
+   "note": "",
+   "status": "same",
+   "columns": [
+    {
+     "name": "day",
+     "type": "date",
+     "pk": true,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "team_id",
+     "type": "uuid",
+     "pk": true,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "orders",
+     "type": "integer",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "revenue",
+     "type": "numeric(14,2)",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "currency",
+     "type": "char(3)",
+     "pk": true,
+     "nullable": false,
+     "note": ""
+    }
+   ]
+  }
+ ],
+ "refs": [
+  {
+   "from": {
+    "table": "accounts.sessions",
+    "columns": [
+     "user_id"
+    ]
+   },
+   "to": {
+    "table": "accounts.users",
+    "columns": [
+     "id"
+    ]
+   }
+  },
+  {
+   "from": {
+    "table": "accounts.password_resets",
+    "columns": [
+     "user_id"
+    ]
+   },
+   "to": {
+    "table": "accounts.users",
+    "columns": [
+     "id"
+    ]
+   }
+  },
+  {
+   "from": {
+    "table": "accounts.teams",
+    "columns": [
+     "owner_id"
+    ]
+   },
+   "to": {
+    "table": "accounts.users",
+    "columns": [
+     "id"
+    ]
+   }
+  },
+  {
+   "from": {
+    "table": "accounts.team_members",
+    "columns": [
+     "team_id"
+    ]
+   },
+   "to": {
+    "table": "accounts.teams",
+    "columns": [
+     "id"
+    ]
+   }
+  },
+  {
+   "from": {
+    "table": "accounts.team_members",
+    "columns": [
+     "user_id"
+    ]
+   },
+   "to": {
+    "table": "accounts.users",
+    "columns": [
+     "id"
+    ]
+   }
+  },
+  {
+   "from": {
+    "table": "accounts.api_tokens",
+    "columns": [
+     "team_id"
+    ]
+   },
+   "to": {
+    "table": "accounts.teams",
+    "columns": [
+     "id"
+    ]
+   }
+  },
+  {
+   "from": {
+    "table": "accounts.audit_log",
+    "columns": [
+     "actor_id"
+    ]
+   },
+   "to": {
+    "table": "accounts.users",
+    "columns": [
+     "id"
+    ]
+   }
+  },
+  {
+   "from": {
+    "table": "catalog.categories",
+    "columns": [
+     "parent_id"
+    ]
+   },
+   "to": {
+    "table": "catalog.categories",
+    "columns": [
+     "id"
+    ]
+   }
+  },
+  {
+   "from": {
+    "table": "catalog.products",
+    "columns": [
+     "team_id"
+    ]
+   },
+   "to": {
+    "table": "accounts.teams",
+    "columns": [
+     "id"
+    ]
+   }
+  },
+  {
+   "from": {
+    "table": "catalog.products",
+    "columns": [
+     "category_id"
+    ]
+   },
+   "to": {
+    "table": "catalog.categories",
+    "columns": [
+     "id"
+    ]
+   }
+  },
+  {
+   "from": {
+    "table": "catalog.products",
+    "columns": [
+     "brand_id"
+    ]
+   },
+   "to": {
+    "table": "catalog.brands",
+    "columns": [
+     "id"
+    ]
+   }
+  },
+  {
+   "from": {
+    "table": "catalog.product_variants",
+    "columns": [
+     "product_id"
+    ]
+   },
+   "to": {
+    "table": "catalog.products",
+    "columns": [
+     "id"
+    ]
+   }
+  },
+  {
+   "from": {
+    "table": "catalog.product_images",
+    "columns": [
+     "product_id"
+    ]
+   },
+   "to": {
+    "table": "catalog.products",
+    "columns": [
+     "id"
+    ]
+   }
+  },
+  {
+   "from": {
+    "table": "catalog.product_tags",
+    "columns": [
+     "product_id"
+    ]
+   },
+   "to": {
+    "table": "catalog.products",
+    "columns": [
+     "id"
+    ]
+   }
+  },
+  {
+   "from": {
+    "table": "catalog.product_tags",
+    "columns": [
+     "tag_id"
+    ]
+   },
+   "to": {
+    "table": "catalog.tags",
+    "columns": [
+     "id"
+    ]
+   }
+  },
+  {
+   "from": {
+    "table": "catalog.collection_products",
+    "columns": [
+     "collection_id"
+    ]
+   },
+   "to": {
+    "table": "catalog.collections",
+    "columns": [
+     "id"
+    ]
+   }
+  },
+  {
+   "from": {
+    "table": "catalog.collection_products",
+    "columns": [
+     "product_id"
+    ]
+   },
+   "to": {
+    "table": "catalog.products",
+    "columns": [
+     "id"
+    ]
+   }
+  },
+  {
+   "from": {
+    "table": "catalog.warehouses",
+    "columns": [
+     "team_id"
+    ]
+   },
+   "to": {
+    "table": "accounts.teams",
+    "columns": [
+     "id"
+    ]
+   }
+  },
+  {
+   "from": {
+    "table": "catalog.warehouses",
+    "columns": [
+     "address_id"
+    ]
+   },
+   "to": {
+    "table": "shipping.addresses",
+    "columns": [
+     "id"
+    ]
+   }
+  },
+  {
+   "from": {
+    "table": "catalog.inventory_levels",
+    "columns": [
+     "variant_id"
+    ]
+   },
+   "to": {
+    "table": "catalog.product_variants",
+    "columns": [
+     "id"
+    ]
+   }
+  },
+  {
+   "from": {
+    "table": "catalog.inventory_levels",
+    "columns": [
+     "warehouse_id"
+    ]
+   },
+   "to": {
+    "table": "catalog.warehouses",
+    "columns": [
+     "id"
+    ]
+   }
+  },
+  {
+   "from": {
+    "table": "orders.carts",
+    "columns": [
+     "user_id"
+    ]
+   },
+   "to": {
+    "table": "accounts.users",
+    "columns": [
+     "id"
+    ]
+   }
+  },
+  {
+   "from": {
+    "table": "orders.cart_items",
+    "columns": [
+     "cart_id"
+    ]
+   },
+   "to": {
+    "table": "orders.carts",
+    "columns": [
+     "id"
+    ]
+   }
+  },
+  {
+   "from": {
+    "table": "orders.cart_items",
+    "columns": [
+     "variant_id"
+    ]
+   },
+   "to": {
+    "table": "catalog.product_variants",
+    "columns": [
+     "id"
+    ]
+   }
+  },
+  {
+   "from": {
+    "table": "orders.orders",
+    "columns": [
+     "user_id"
+    ]
+   },
+   "to": {
+    "table": "accounts.users",
+    "columns": [
+     "id"
+    ]
+   }
+  },
+  {
+   "from": {
+    "table": "orders.orders",
+    "columns": [
+     "team_id"
+    ]
+   },
+   "to": {
+    "table": "accounts.teams",
+    "columns": [
+     "id"
+    ]
+   }
+  },
+  {
+   "from": {
+    "table": "orders.orders",
+    "columns": [
+     "shipping_address_id"
+    ]
+   },
+   "to": {
+    "table": "shipping.addresses",
+    "columns": [
+     "id"
+    ]
+   }
+  },
+  {
+   "from": {
+    "table": "orders.order_items",
+    "columns": [
+     "order_id"
+    ]
+   },
+   "to": {
+    "table": "orders.orders",
+    "columns": [
+     "id"
+    ]
+   }
+  },
+  {
+   "from": {
+    "table": "orders.order_items",
+    "columns": [
+     "variant_id"
+    ]
+   },
+   "to": {
+    "table": "catalog.product_variants",
+    "columns": [
+     "id"
+    ]
+   }
+  },
+  {
+   "from": {
+    "table": "orders.order_status_events",
+    "columns": [
+     "order_id"
+    ]
+   },
+   "to": {
+    "table": "orders.orders",
+    "columns": [
+     "id"
+    ]
+   }
+  },
+  {
+   "from": {
+    "table": "orders.order_status_events",
+    "columns": [
+     "actor_id"
+    ]
+   },
+   "to": {
+    "table": "accounts.users",
+    "columns": [
+     "id"
+    ]
+   }
+  },
+  {
+   "from": {
+    "table": "orders.discounts",
+    "columns": [
+     "team_id"
+    ]
+   },
+   "to": {
+    "table": "accounts.teams",
+    "columns": [
+     "id"
+    ]
+   }
+  },
+  {
+   "from": {
+    "table": "orders.discount_redemptions",
+    "columns": [
+     "discount_id"
+    ]
+   },
+   "to": {
+    "table": "orders.discounts",
+    "columns": [
+     "id"
+    ]
+   }
+  },
+  {
+   "from": {
+    "table": "orders.discount_redemptions",
+    "columns": [
+     "order_id"
+    ]
+   },
+   "to": {
+    "table": "orders.orders",
+    "columns": [
+     "id"
+    ]
+   }
+  },
+  {
+   "from": {
+    "table": "orders.gift_cards",
+    "columns": [
+     "purchased_by"
+    ]
+   },
+   "to": {
+    "table": "accounts.users",
+    "columns": [
+     "id"
+    ]
+   }
+  },
+  {
+   "from": {
+    "table": "payments.payment_methods",
+    "columns": [
+     "user_id"
+    ]
+   },
+   "to": {
+    "table": "accounts.users",
+    "columns": [
+     "id"
+    ]
+   }
+  },
+  {
+   "from": {
+    "table": "payments.payments",
+    "columns": [
+     "order_id"
+    ]
+   },
+   "to": {
+    "table": "orders.orders",
+    "columns": [
+     "id"
+    ]
+   }
+  },
+  {
+   "from": {
+    "table": "payments.payments",
+    "columns": [
+     "method_id"
+    ]
+   },
+   "to": {
+    "table": "payments.payment_methods",
+    "columns": [
+     "id"
+    ]
+   }
+  },
+  {
+   "from": {
+    "table": "payments.payments",
+    "columns": [
+     "gift_card_id"
+    ]
+   },
+   "to": {
+    "table": "orders.gift_cards",
+    "columns": [
+     "id"
+    ]
+   }
+  },
+  {
+   "from": {
+    "table": "payments.refunds",
+    "columns": [
+     "payment_id"
+    ]
+   },
+   "to": {
+    "table": "payments.payments",
+    "columns": [
+     "id"
+    ]
+   }
+  },
+  {
+   "from": {
+    "table": "payments.refunds",
+    "columns": [
+     "return_id"
+    ]
+   },
+   "to": {
+    "table": "support.returns",
+    "columns": [
+     "id"
+    ]
+   }
+  },
+  {
+   "from": {
+    "table": "payments.invoices",
+    "columns": [
+     "order_id"
+    ]
+   },
+   "to": {
+    "table": "orders.orders",
+    "columns": [
+     "id"
+    ]
+   }
+  },
+  {
+   "from": {
+    "table": "payments.invoice_lines",
+    "columns": [
+     "invoice_id"
+    ]
+   },
+   "to": {
+    "table": "payments.invoices",
+    "columns": [
+     "id"
+    ]
+   }
+  },
+  {
+   "from": {
+    "table": "payments.payouts",
+    "columns": [
+     "team_id"
+    ]
+   },
+   "to": {
+    "table": "accounts.teams",
+    "columns": [
+     "id"
+    ]
+   }
+  },
+  {
+   "from": {
+    "table": "shipping.addresses",
+    "columns": [
+     "user_id"
+    ]
+   },
+   "to": {
+    "table": "accounts.users",
+    "columns": [
+     "id"
+    ]
+   }
+  },
+  {
+   "from": {
+    "table": "shipping.shipping_rates",
+    "columns": [
+     "carrier_id"
+    ]
+   },
+   "to": {
+    "table": "shipping.carriers",
+    "columns": [
+     "id"
+    ]
+   }
+  },
+  {
+   "from": {
+    "table": "shipping.shipments",
+    "columns": [
+     "order_id"
+    ]
+   },
+   "to": {
+    "table": "orders.orders",
+    "columns": [
+     "id"
+    ]
+   }
+  },
+  {
+   "from": {
+    "table": "shipping.shipments",
+    "columns": [
+     "carrier_id"
+    ]
+   },
+   "to": {
+    "table": "shipping.carriers",
+    "columns": [
+     "id"
+    ]
+   }
+  },
+  {
+   "from": {
+    "table": "shipping.shipment_items",
+    "columns": [
+     "shipment_id"
+    ]
+   },
+   "to": {
+    "table": "shipping.shipments",
+    "columns": [
+     "id"
+    ]
+   }
+  },
+  {
+   "from": {
+    "table": "shipping.shipment_items",
+    "columns": [
+     "variant_id"
+    ]
+   },
+   "to": {
+    "table": "catalog.product_variants",
+    "columns": [
+     "id"
+    ]
+   }
+  },
+  {
+   "from": {
+    "table": "shipping.tracking_events",
+    "columns": [
+     "shipment_id"
+    ]
+   },
+   "to": {
+    "table": "shipping.shipments",
+    "columns": [
+     "id"
+    ]
+   }
+  },
+  {
+   "from": {
+    "table": "support.tickets",
+    "columns": [
+     "user_id"
+    ]
+   },
+   "to": {
+    "table": "accounts.users",
+    "columns": [
+     "id"
+    ]
+   }
+  },
+  {
+   "from": {
+    "table": "support.tickets",
+    "columns": [
+     "order_id"
+    ]
+   },
+   "to": {
+    "table": "orders.orders",
+    "columns": [
+     "id"
+    ]
+   }
+  },
+  {
+   "from": {
+    "table": "support.tickets",
+    "columns": [
+     "assignee_id"
+    ]
+   },
+   "to": {
+    "table": "accounts.users",
+    "columns": [
+     "id"
+    ]
+   }
+  },
+  {
+   "from": {
+    "table": "support.ticket_messages",
+    "columns": [
+     "ticket_id"
+    ]
+   },
+   "to": {
+    "table": "support.tickets",
+    "columns": [
+     "id"
+    ]
+   }
+  },
+  {
+   "from": {
+    "table": "support.ticket_messages",
+    "columns": [
+     "author_id"
+    ]
+   },
+   "to": {
+    "table": "accounts.users",
+    "columns": [
+     "id"
+    ]
+   }
+  },
+  {
+   "from": {
+    "table": "support.returns",
+    "columns": [
+     "order_id"
+    ]
+   },
+   "to": {
+    "table": "orders.orders",
+    "columns": [
+     "id"
+    ]
+   }
+  },
+  {
+   "from": {
+    "table": "support.return_items",
+    "columns": [
+     "return_id"
+    ]
+   },
+   "to": {
+    "table": "support.returns",
+    "columns": [
+     "id"
+    ]
+   }
+  },
+  {
+   "from": {
+    "table": "support.return_items",
+    "columns": [
+     "variant_id"
+    ]
+   },
+   "to": {
+    "table": "catalog.product_variants",
+    "columns": [
+     "id"
+    ]
+   }
+  },
+  {
+   "from": {
+    "table": "marketing.reviews",
+    "columns": [
+     "product_id"
+    ]
+   },
+   "to": {
+    "table": "catalog.products",
+    "columns": [
+     "id"
+    ]
+   }
+  },
+  {
+   "from": {
+    "table": "marketing.reviews",
+    "columns": [
+     "user_id"
+    ]
+   },
+   "to": {
+    "table": "accounts.users",
+    "columns": [
+     "id"
+    ]
+   }
+  },
+  {
+   "from": {
+    "table": "marketing.reviews",
+    "columns": [
+     "order_id"
+    ]
+   },
+   "to": {
+    "table": "orders.orders",
+    "columns": [
+     "id"
+    ]
+   }
+  },
+  {
+   "from": {
+    "table": "marketing.review_votes",
+    "columns": [
+     "review_id"
+    ]
+   },
+   "to": {
+    "table": "marketing.reviews",
+    "columns": [
+     "id"
+    ]
+   }
+  },
+  {
+   "from": {
+    "table": "marketing.review_votes",
+    "columns": [
+     "user_id"
+    ]
+   },
+   "to": {
+    "table": "accounts.users",
+    "columns": [
+     "id"
+    ]
+   }
+  },
+  {
+   "from": {
+    "table": "marketing.wishlists",
+    "columns": [
+     "user_id"
+    ]
+   },
+   "to": {
+    "table": "accounts.users",
+    "columns": [
+     "id"
+    ]
+   }
+  },
+  {
+   "from": {
+    "table": "marketing.wishlists",
+    "columns": [
+     "variant_id"
+    ]
+   },
+   "to": {
+    "table": "catalog.product_variants",
+    "columns": [
+     "id"
+    ]
+   }
+  },
+  {
+   "from": {
+    "table": "marketing.newsletter_subscriptions",
+    "columns": [
+     "user_id"
+    ]
+   },
+   "to": {
+    "table": "accounts.users",
+    "columns": [
+     "id"
+    ]
+   }
+  },
+  {
+   "from": {
+    "table": "marketing.campaigns",
+    "columns": [
+     "team_id"
+    ]
+   },
+   "to": {
+    "table": "accounts.teams",
+    "columns": [
+     "id"
+    ]
+   }
+  },
+  {
+   "from": {
+    "table": "marketing.campaigns",
+    "columns": [
+     "collection_id"
+    ]
+   },
+   "to": {
+    "table": "catalog.collections",
+    "columns": [
+     "id"
+    ]
+   }
+  },
+  {
+   "from": {
+    "table": "analytics.product_views_daily",
+    "columns": [
+     "product_id"
+    ]
+   },
+   "to": {
+    "table": "catalog.products",
+    "columns": [
+     "id"
+    ]
+   }
+  },
+  {
+   "from": {
+    "table": "analytics.sales_daily",
+    "columns": [
+     "team_id"
+    ]
+   },
+   "to": {
+    "table": "accounts.teams",
+    "columns": [
+     "id"
+    ]
+   }
+  }
+ ]
+}</script>

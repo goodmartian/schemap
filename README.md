@@ -27,7 +27,7 @@ Also: search (`/` or Cmd+K), a filter for new and changing tables when the schem
 [`examples/storefront`](examples/storefront) is a made-up online store: 49 tables, 250 columns, 71 references, 8 modules. Download [`diagram.html`](examples/storefront/diagram.html) and open it, or rebuild it from [`schema.json`](examples/storefront/schema.json):
 
 ```bash
-python3 skills/schemap/scripts/build_diagram.py examples/storefront/schema.json -o diagram.html
+node skills/schemap/check.mjs examples/storefront/schema.json -o diagram.html
 ```
 
 ## Install
@@ -52,21 +52,21 @@ npx skills add goodmartian/schemap -g -y
 
 1. **Read the schema** into `schema.json`: from SQL migrations, a live Postgres database (read-only), Prisma, DBML, or written by the agent from a spec.
 2. **Shape it for the reader**: modules, human table names, column notes, and new / changing marks. This is the agent's job, guided by [`SKILL.md`](skills/schemap/SKILL.md).
-3. **Build** one HTML file. The build checks the input and the layout and stops on any problem: no overlapping cards, no table outside its module.
+3. **Build** one HTML file: the viewer with `schema.json` appended. The viewer checks the schema and lays it out in the browser, so nothing has to run to make a diagram. `check.mjs` runs the same code in Node to list problems before you open the page.
 
 | Path | What it does |
 |---|---|
 | `skills/schemap/SKILL.md` | The workflow the agent follows |
 | `skills/schemap/schema-format.md` | The `schema.json` format every step shares |
-| `skills/schemap/scripts/build_diagram.py` | `schema.json` → diagram, with checks of the input and the layout |
-| `skills/schemap/scripts/import_sql.py`, `import_prisma.py`, `import_dbml.py` | Sources → `schema.json` |
-| `skills/schemap/scripts/schema_io.py` | What the importers share: text helpers, command line, writing and checking `schema.json` |
-| `skills/schemap/scripts/postgres_schema.sql` | Read-only query: a live Postgres database → `schema.json` |
-| `skills/schemap/scripts/viewer.template.html` | The viewer: one canvas, no libraries |
+| `skills/schemap/viewer.html` | The viewer: checks and lays out `schema.json`, draws it on one canvas; no libraries |
+| `skills/schemap/check.mjs` | `schema.json` → list of problems, or the page (Node 18+, optional) |
+| `skills/schemap/importers/import_sql.py`, `import_prisma.py`, `import_dbml.py` | Sources → `schema.json` (Python 3.9+, optional) |
+| `skills/schemap/importers/schema_io.py` | What the importers share: text helpers, command line, writing `schema.json` |
+| `skills/schemap/importers/postgres_schema.sql` | Read-only query: a live Postgres database → `schema.json` |
 | `tests/run_checks.py` | The three importers read the same shop identically, and everything builds |
 | `docs/screenshots/make.sh` | Retakes these screenshots with headless Chrome |
 
-Python 3.9+ only, no packages. Check a copy with `python3 tests/run_checks.py`.
+No packages to install. A diagram needs only a browser; checking needs Node 18+, the importers need Python 3.9+. Without Python, the agent can write `schema.json` itself from any database's own description of its tables. Self-check: `python3 tests/run_checks.py`.
 
 ## Privacy
 

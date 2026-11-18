@@ -1,7 +1,9 @@
-<title>Database diagram</title>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <style>
-  /* Страница без своего каркаса <html>/<head>/<body>: так её публикует claude.ai как артефакт, а для файла
-     каркас добавляет build_diagram.py. Вид — по Linear: нейтральный фон, тонкие рамки, один шрифт без моноширного. */
+  /* Просмотрщик без своего каркаса <html>/<head>/<body> и без <title>: так его публикует claude.ai как артефакт
+     (название даётся при публикации). Для файла перед ним ставится <!doctype html>, а схема дописывается в конец:
+     <script id="schema" type="application/json">…</script>. Вид — по Linear: нейтральный фон, тонкие рамки, один шрифт без моноширного. */
   :root {
     --color-background: #f4f4f5;
     --color-surface: #ffffff;
@@ -226,7 +228,7 @@
   }
   #tip-name { font-weight: 600; }
   #failure { position: fixed; inset: 0; display: grid; place-content: center; gap: var(--space-1); margin: 0; padding: var(--space-4); text-align: center; }
-  #failure-reason { color: var(--color-text-muted); }
+  #failure-reason { color: var(--color-text-muted); white-space: pre-line; }   /* каждая проблема схемы — своей строкой */
 </style>
 <canvas id="canvas" role="img" data-label="canvas"></canvas>
 
@@ -292,17 +294,444 @@
 
 <p id="failure" hidden><span id="failure-text"></span><span id="failure-reason"></span></p>
 
-<script id="diagram-data" type="application/json">{{DIAGRAM_DATA}}</script>
+<script id="schemap-core">
+'use strict';
+/*
+ * schemap core: schema.json → checked, laid-out diagrams. No page access here, so the same code runs in the
+ * viewer and in check.mjs (Node). layoutSchema(raw) returns { data, summary } or throws SchemaError / Error
+ * with every problem it found. Layout: same-width columns of cards, the next card in the shortest column;
+ * one area per module; each diagram in two views (all columns; keys only).
+ */
+const LAYOUT = {
+  cardW: 260, cardHead: 48, row: 24,           // 4-point scale: 8 + name 16 + title 16 + 8; a row is 24
+  gapX: 64, gapY: 32,                          // between card columns: room for reference lines
+  areaPad: 24, areaTop: 48, areaGap: 128,      // area name: 12 + label 24 + 12; between areas
+  viewAspect: 1440 / 744, maxRows: 4, maxTarget: 9000,
+};
+// module colour for a dark and for a light background; neighbouring areas get distant hues
+const PALETTE = [
+  ['#8eb7ff', '#2563eb'], ['#ff9f74', '#c2410c'], ['#8a61f5', '#6d28d9'],
+  ['#c05dcf', '#a21caf'], ['#ffe374', '#a16207'], ['#42e0c0', '#0f766e'],
+  ['#9ef07a', '#4d7c0f'], ['#ff6363', '#dc2626'], ['#4dee8a', '#15803d'],
+  ['#7dd3fc', '#0369a1'], ['#fda4af', '#be123c'], ['#cbd5e1', '#475569'],
+];
+const NEIGHBOUR_HUE_MIN = 45;
+const FLAG = { PK: 1, FK: 2, NULLABLE: 4 };
+const MODES = ['all', 'keys'];
+const SCHEMA_STATUSES = ['new', 'changed', 'same'];
+const SCHEMA_LANGS = ['en', 'ru'];
+const WORDS = { en: { overview: 'Overview', database: 'Database' }, ru: { overview: 'Обзор', database: 'База' } };
+// address slugs: ASCII letters, digits, single hyphens — the only #name a claude.ai artifact link carries;
+// claude.ai reserves these names for itself
+const RESERVED_SLUGS = new Set(['settings', 'sidebar', 'customize', 'upgrade', 'downloads']);
+
+class SchemaError extends Error {}
+
+// ---------- input format: optional fields get their documented defaults here, in one place ----------
+function checkSchema(raw) {
+  const problems = [];
+  const need = (condition, message) => { if (!condition) problems.push(message); return Boolean(condition); };
+  const isText = (value) => typeof value === 'string' && value !== '';
+  const isObject = (value) => value !== null && typeof value === 'object' && !Array.isArray(value);
+  if (!isObject(raw)) throw new SchemaError('the schema must be a JSON object');
+  const lang = raw.lang ?? 'en';
+  need(SCHEMA_LANGS.includes(lang), `"lang" must be one of ${SCHEMA_LANGS.join(', ')}, got ${JSON.stringify(lang)}`);
+  const tables = raw.tables;
+  if (!need(Array.isArray(tables) && tables.length > 0, '"tables" must be a non-empty list')) {
+    throw new SchemaError(problems.join('\n'));
+  }
+  const refs = raw.refs ?? [];
+  need(Array.isArray(refs), '"refs" must be a list');
+
+  const seen = new Set(), clean = [];
+  tables.forEach((t, n) => {
+    if (!need(isObject(t), `tables[${n}]: must be an object`)) return;
+    need(isText(t.id), `tables[${n}]: "id" must be a non-empty string`);
+    const where = `table ${t.id}`;
+    need(!seen.has(t.id), `${where}: duplicate id`);
+    seen.add(t.id);
+    need(isText(t.name), `${where}: "name" must be a non-empty string`);
+    need(isText(t.module), `${where}: "module" must be a non-empty string`);
+    const status = t.status ?? 'same';
+    need(SCHEMA_STATUSES.includes(status), `${where}: "status" must be one of ${SCHEMA_STATUSES.join(', ')}, got ${JSON.stringify(status)}`);
+    if (!need(Array.isArray(t.columns) && t.columns.length > 0, `${where}: "columns" must be a non-empty list`)) return;
+    const names = new Set(), columns = [];
+    for (const c of t.columns) {
+      if (!need(isObject(c) && isText(c.name), `${where}: every column needs a "name"`)) continue;
+      need(!names.has(c.name), `${where}: duplicate column ${c.name}`);
+      names.add(c.name);
+      need(isText(c.type), `${where}.${c.name}: "type" must be a non-empty string`);
+      const pk = c.pk ?? false, nullable = c.nullable ?? true;
+      need(typeof pk === 'boolean' && typeof nullable === 'boolean', `${where}.${c.name}: "pk" and "nullable" must be true or false`);
+      columns.push({ name: c.name, type: c.type || '', pk, nullable, note: c.note || '' });
+    }
+    clean.push({ id: t.id, name: t.name, module: t.module, status, title: t.title || '', note: t.note || '', columns });
+  });
+
+  const byId = new Map(clean.map((t) => [t.id, t]));
+  const cleanRefs = [], refKeys = new Set();
+  let duplicates = 0;
+  (Array.isArray(refs) ? refs : []).forEach((r, n) => {
+    const where = `refs[${n}]`;
+    const ends = ['from', 'to'].map((side) => r && r[side]);
+    if (!need(ends.every((end) => isObject(end) && Array.isArray(end.columns)),
+      `${where}: needs "from" and "to", each with "table" and "columns"`)) return;
+    let ok = true;
+    for (const { table, columns } of ends) {
+      if (!need(byId.has(table), `${where}: unknown table ${table}`)) { ok = false; continue; }
+      const have = new Set(byId.get(table).columns.map((c) => c.name));
+      for (const col of columns) ok = need(have.has(col), `${where}: table ${table} has no column ${col}`) && ok;
+    }
+    ok = need(ends[0].columns.length === ends[1].columns.length && ends[0].columns.length > 0,
+      `${where}: "from" and "to" need the same non-zero number of columns`) && ok;
+    if (!ok) return;
+    const ref = { from: { table: ends[0].table, columns: [...ends[0].columns] }, to: { table: ends[1].table, columns: [...ends[1].columns] } };
+    const key = JSON.stringify(ref);
+    if (refKeys.has(key)) duplicates++;
+    refKeys.add(key);
+    cleanRefs.push(ref);
+  });
+  need(duplicates === 0, `${duplicates} duplicate references`);
+
+  const used = [...new Set(clean.map((t) => t.module))];
+  let modules = raw.modules;
+  if (modules === undefined || modules === null) {
+    modules = [...used].sort().map((code) => ({ code, name: code }));
+  } else if (need(Array.isArray(modules), '"modules" must be a list')) {
+    const codes = modules.filter(isObject).map((m) => m.code);
+    need(codes.length === modules.length && codes.every(isText), 'every module needs a "code"');
+    need(new Set(codes).size === codes.length, 'duplicate module codes');
+    const missing = used.filter((code) => !codes.includes(code));
+    need(missing.length === 0, `tables use modules that "modules" does not list: ${missing.join(', ')}`);
+    const unused = codes.filter((code) => !used.includes(code));
+    need(unused.length === 0, `modules without tables: ${unused.join(', ')}`);
+    modules = modules.filter(isObject).map((m) => ({ code: m.code, name: m.name || m.code }));
+  }
+  if (problems.length > 0) throw new SchemaError(problems.join('\n'));
+  return { title: raw.title || WORDS[lang].database, lang, modules, tables: clean, refs: cleanRefs };
+}
+
+function slugger(fallback) {                       // a unique address slug for each text
+  const taken = new Set();
+  return (text) => {
+    let base = text.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || `${fallback}-${taken.size + 1}`;
+    if (RESERVED_SLUGS.has(base) || base.startsWith('comment-')) base = `${fallback}-${base}`;
+    let candidate = base;
+    for (let n = 2; taken.has(candidate); n++) candidate = `${base}-${n}`;
+    taken.add(candidate);
+    return candidate;
+  };
+}
+
+// ---------- layout ----------
+const cardHeight = (count) => LAYOUT.cardHead + LAYOUT.row * count;
+function rectsIntersect(a, b, gap = 0) {          // two {x, y, w, h} rectangles overlap, or come closer than gap
+  return a.x < b.x + b.w + gap && a.x + a.w + gap > b.x && a.y < b.y + b.h + gap && a.y + a.h + gap > b.y;
+}
+function hueOf(color) {
+  const [r, g, b] = [1, 3, 5].map((i) => parseInt(color.slice(i, i + 2), 16) / 255);
+  const max = Math.max(r, g, b), min = Math.min(r, g, b), d = max - min;
+  if (d === 0) return 0;
+  const h = max === r ? ((g - b) / d) % 6 : max === g ? (b - r) / d + 2 : (r - g) / d + 4;
+  return ((h * 60) + 360) % 360;
+}
+const PALETTE_HUE = new Map(PALETTE.map((pair) => [pair, hueOf(pair[0])]));
+function hueDistance(a, b) {
+  const d = Math.abs(PALETTE_HUE.get(a) - PALETTE_HUE.get(b));
+  return Math.min(d, 360 - d);
+}
+// A colour per module such that neighbouring areas on the overview differ in hue: backtracking, the module with
+// most neighbours first. Colours are unique while there are enough of them; past that, only neighbours differ.
+function assignColors(codes, rects) {
+  const neighbours = new Map(codes.map((c) => [c, codes.filter((o) => o !== c && rectsIntersect(rects[c], rects[o], LAYOUT.areaGap + 1))]));
+  const order = [...codes].sort((a, b) => neighbours.get(b).length - neighbours.get(a).length);
+  const unique = codes.length <= PALETTE.length;
+  const chosen = new Map();
+  const place = (i) => {
+    if (i === order.length) return true;
+    const code = order[i];
+    const taken = new Set(chosen.values());
+    for (const pair of PALETTE) {
+      if (unique && taken.has(pair)) continue;
+      if (neighbours.get(code).every((o) => !chosen.has(o) || hueDistance(pair, chosen.get(o)) >= NEIGHBOUR_HUE_MIN)) {
+        chosen.set(code, pair);
+        if (place(i + 1)) return true;
+        chosen.delete(code);
+      }
+    }
+    return false;
+  };
+  if (!place(0)) throw new Error('could not colour the modules so that neighbouring areas differ in hue');
+  return chosen;
+}
+function columnCount(items, target) {              // card columns so that none is taller than target
+  const total = items.reduce((sum, [, h]) => sum + h, 0) + LAYOUT.gapY * (items.length - 1);
+  return Math.min(items.length, Math.max(1, Math.ceil(total / target)));
+}
+function pack(items, columns) {                    // items: [[id, height]] → area size and card places
+  const filled = new Array(columns).fill(0), places = [];
+  for (const [id, h] of items) {
+    let col = 0;
+    for (let i = 1; i < columns; i++) if (filled[i] < filled[col]) col = i;
+    places.push([id, col * (LAYOUT.cardW + LAYOUT.gapX), filled[col]]);
+    filled[col] += h + LAYOUT.gapY;
+  }
+  return { w: columns * LAYOUT.cardW + (columns - 1) * LAYOUT.gapX + 2 * LAYOUT.areaPad,
+    h: Math.max(...filled) - LAYOUT.gapY + LAYOUT.areaTop + LAYOUT.areaPad, places };
+}
+// first closeness to the window proportions (coarse), then the smallest area
+const aspectScore = (w, h) => [Math.round(Math.abs(Math.log((w / h) / LAYOUT.viewAspect)) * 10) / 10, w * h];
+const better = (a, b) => b === null || a[0] < b[0] || (a[0] === b[0] && a[1] < b[1]);
+function targets(heights) {                        // column heights to try, every 100: tallest card … one column
+  const tallest = Math.max(...heights);
+  const total = heights.reduce((s, h) => s + h, 0) + LAYOUT.gapY * heights.length;
+  const out = [];
+  for (let t = tallest; t <= Math.max(tallest, Math.min(total, LAYOUT.maxTarget)); t += 100) out.push(t);
+  return out;
+}
+function* combinations(values, k, start = 0, picked = []) {
+  if (picked.length === k) { yield picked; return; }
+  for (let i = start; i < values.length; i++) yield* combinations(values, k, i + 1, [...picked, values[i]]);
+}
+function layoutOverview(codes, itemsByModule) {
+  const heights = codes.flatMap((c) => itemsByModule[c].map(([, h]) => h));
+  const packs = new Map();                         // a packing depends only on the column count: keep each once
+  let best = null;
+  const cutPoints = codes.map((_, i) => i).slice(1);
+  for (const target of targets(heights)) {
+    const packed = {};
+    for (const c of codes) {
+      const key = `${c}|${columnCount(itemsByModule[c], target)}`;
+      if (!packs.has(key)) packs.set(key, pack(itemsByModule[c], columnCount(itemsByModule[c], target)));
+      packed[c] = packs.get(key);
+    }
+    // 1–3 modules fit one row; from 4 on, one row makes tall narrow areas whose names get cut
+    for (let rows = codes.length <= 3 ? 1 : 2; rows <= Math.min(codes.length, LAYOUT.maxRows); rows++) {
+      for (const cuts of combinations(cutPoints, rows - 1)) {
+        const bounds = [0, ...cuts, codes.length];
+        const groups = bounds.slice(1).map((end, i) => codes.slice(bounds[i], end));
+        const widths = groups.map((g) => g.reduce((s, c) => s + packed[c].w, 0) + LAYOUT.areaGap * (g.length - 1));
+        const rowHeights = groups.map((g) => Math.max(...g.map((c) => packed[c].h)));
+        const score = aspectScore(Math.max(...widths), rowHeights.reduce((s, h) => s + h, 0) + LAYOUT.areaGap * (rows - 1));
+        if (better(score, best && best.score)) best = { score, packed, groups, rowHeights };
+      }
+    }
+  }
+  const areas = {}, positions = {};
+  let y = 0;
+  best.groups.forEach((group, row) => {
+    let x = 0;
+    for (const code of group) {
+      const p = best.packed[code];
+      areas[code] = { x, y, w: p.w, h: best.rowHeights[row] };
+      for (const [id, dx, dy] of p.places) positions[id] = [x + LAYOUT.areaPad + dx, y + LAYOUT.areaTop + dy];
+      x += p.w + LAYOUT.areaGap;
+    }
+    y += best.rowHeights[row] + LAYOUT.areaGap;
+  });
+  return { areas, positions };
+}
+// own: [[id, height]] of the module; otherGroups: [[module code, [[id, height]]]] — tables of other modules it
+// references, one area per module. Those areas stack in columns to the right, no taller than the module's own area.
+function layoutModule(own, otherGroups) {
+  const heights = [...own.map(([, h]) => h), ...otherGroups.flatMap(([, items]) => items.map(([, h]) => h))];
+  let best = null;
+  for (const target of targets(heights)) {
+    const a = pack(own, columnCount(own, target));
+    const columns = [];
+    let column = null;
+    for (const [code, items] of otherGroups) {
+      const p = pack(items, columnCount(items, Math.max(a.h - LAYOUT.areaTop - LAYOUT.areaPad, ...items.map(([, h]) => h))));
+      if (column === null || (column.items.length > 0 && column.h + LAYOUT.areaGap + p.h > a.h)) {
+        column = { w: 0, h: -LAYOUT.areaGap, items: [] };
+        columns.push(column);
+      }
+      column.items.push([code, p, column.h + LAYOUT.areaGap]);
+      column.h += LAYOUT.areaGap + p.h;
+      column.w = Math.max(column.w, p.w);
+    }
+    const w = a.w + columns.reduce((s, c) => s + LAYOUT.areaGap + c.w, 0);
+    const h = Math.max(a.h, ...columns.map((c) => c.h));
+    const score = aspectScore(w, h);
+    if (better(score, best && best.score)) best = { score, a, columns, h };
+  }
+  const { a, columns, h } = best;
+  const areas = { own: { x: 0, y: 0, w: a.w, h } };
+  const positions = {};
+  for (const [id, dx, dy] of a.places) positions[id] = [LAYOUT.areaPad + dx, LAYOUT.areaTop + dy];
+  let x = a.w;
+  for (const column of columns) {
+    x += LAYOUT.areaGap;
+    for (const [code, p, y] of column.items) {
+      areas[code] = { x, y, w: p.w, h: p.h };
+      for (const [id, dx, dy] of p.places) positions[id] = [x + LAYOUT.areaPad + dx, y + LAYOUT.areaTop + dy];
+    }
+    x += column.w;
+  }
+  return { areas, positions };
+}
+
+// One diagram: areas, cards (columns shown on each), references between card rows; check() proves the geometry.
+class DiagramBuilder {
+  constructor(code, mode, slug, name, label, module) {
+    this.data = { code, mode, slug, name, label, module, areas: [], tables: [], refs: [] };
+    this.tableIndex = new Map(); this.columnIndex = new Map(); this.tableArea = []; this.rows = 0;
+  }
+  addArea(name, rect, module) {
+    this.data.areas.push({ name, module, ...rect, count: 0 });
+    return this.data.areas.length - 1;
+  }
+  addTable(t, shown, [x, y], area) {             // shown: names of the columns that go on the card
+    const indexes = t.columns.map((c, i) => (shown.has(c.name) ? i : -1)).filter((i) => i >= 0);
+    this.tableIndex.set(t.id, this.data.tables.length);
+    this.columnIndex.set(t.id, new Map(indexes.map((i, n) => [t.columns[i].name, n])));
+    this.tableArea.push(area);
+    this.data.areas[area].count++;
+    this.rows += indexes.length;
+    const entry = { id: t.id, x, y, h: cardHeight(indexes.length) };
+    if (indexes.length < t.columns.length) entry.cols = indexes;   // short card: indexes of the shown columns
+    this.data.tables.push(entry);
+  }
+  addRef({ from, to }) {
+    this.data.refs.push([this.tableIndex.get(from.table), this.columnIndex.get(from.table).get(from.columns[0]),
+      this.tableIndex.get(to.table), this.columnIndex.get(to.table).get(to.columns[0])]);
+  }
+  check(expectTables, expectRefs, expectAreas) {
+    const d = this.data;
+    const got = [d.tables.length, d.refs.length, d.areas.length];
+    if (got.join() !== [expectTables, expectRefs, expectAreas].join()) {
+      throw new Error(`${d.name}: tables, references, areas ${got.join(', ')}, expected ${[expectTables, expectRefs, expectAreas].join(', ')}`);
+    }
+    const cards = d.tables.map((t) => ({ x: t.x, y: t.y, w: LAYOUT.cardW, h: t.h, id: t.id }));
+    let overlaps = 0;
+    for (let i = 0; i < cards.length; i++) for (let j = i + 1; j < cards.length; j++) if (rectsIntersect(cards[i], cards[j])) overlaps++;
+    if (overlaps) throw new Error(`${d.name}: ${overlaps} pairs of cards overlap`);
+    cards.forEach((card, n) => {
+      const holders = d.areas.map((a, i) => (card.x >= a.x && card.y >= a.y && card.x + card.w <= a.x + a.w
+        && card.y + card.h <= a.y + a.h ? i : -1)).filter((i) => i >= 0);
+      if (holders.length !== 1 || holders[0] !== this.tableArea[n]) throw new Error(`${d.name}: table ${card.id} is outside its area`);
+    });
+    for (let i = 0; i < d.areas.length; i++) for (let j = i + 1; j < d.areas.length; j++) {
+      if (rectsIntersect(d.areas[i], d.areas[j])) throw new Error(`${d.name}: areas overlap: ${d.areas[i].name} and ${d.areas[j].name}`);
+    }
+    d.size = [Math.max(...d.areas.map((a) => a.x + a.w)), Math.max(...d.areas.map((a) => a.y + a.h))];
+    return `${d.name} [${d.mode}]: ${got[0]} tables, ${this.rows} column rows, ${got[1]} references, ${got[2]} areas, ${d.size[0]}×${d.size[1]}`;
+  }
+}
+
+function layoutSchema(raw) {
+  const schema = checkSchema(raw);
+  const words = WORDS[schema.lang];
+  const { title, modules, tables, refs } = schema;
+  const codes = modules.map((m) => m.code);
+  const moduleName = new Map(modules.map((m) => [m.code, m.name]));
+  const byId = new Map(tables.map((t) => [t.id, t]));
+  const columnsTotal = tables.reduce((s, t) => s + t.columns.length, 0);
+  const referenced = new Map(), fkColumns = new Map(tables.map((t) => [t.id, new Set()]));
+  for (const r of refs) {
+    referenced.set(r.to.table, (referenced.get(r.to.table) || 0) + 1);
+    for (const c of r.from.columns) fkColumns.get(r.from.table).add(c);
+  }
+  const byName = (a, b) => (a < b ? -1 : a > b ? 1 : 0);
+  // most referenced tables first: they land at the top of their area
+  const byModule = Object.fromEntries(codes.map((c) => [c, tables.filter((t) => t.module === c)
+    .sort((a, b) => (referenced.get(b.id) || 0) - (referenced.get(a.id) || 0) || byName(a.name, b.name))]));
+  // keys view: primary key and both ends of every reference
+  const keys = new Map(tables.map((t) => [t.id, new Set(t.columns.filter((c) => c.pk).map((c) => c.name))]));
+  for (const r of refs) for (const end of [r.from, r.to]) for (const c of end.columns) keys.get(end.table).add(c);
+  const keysTotal = [...keys.values()].reduce((s, k) => s + k.size, 0);
+  const diagramSlug = slugger('diagram'), tableSlug = slugger('table');
+  const slugs = Object.fromEntries(['overview', ...codes].map((c) => [c, diagramSlug(c)]));
+  const diagrams = [], summary = [];
+  let colors = null, inner = 0, outer = 0;
+  for (const mode of MODES) {
+    const shown = (t) => (mode === 'all' ? new Set(t.columns.map((c) => c.name)) : keys.get(t.id));
+    let d = new DiagramBuilder('overview', mode, slugs.overview, `${title} — ${words.overview.toLowerCase()}`, words.overview, null);
+    const overview = layoutOverview(codes, Object.fromEntries(codes.map((c) => [c, byModule[c].map((t) => [t.id, cardHeight(shown(t).size)])])));
+    if (mode === 'all') colors = assignColors(codes, overview.areas);   // the same colours in both views
+    const areaOf = Object.fromEntries(codes.map((c) => [c, d.addArea(moduleName.get(c), overview.areas[c], c)]));
+    for (const t of tables) d.addTable(t, shown(t), overview.positions[t.id], areaOf[t.module]);
+    for (const r of refs) d.addRef(r);
+    summary.push(d.check(tables.length, refs.length, codes.length));
+    if (d.rows !== (mode === 'all' ? columnsTotal : keysTotal)) throw new Error(`overview (${mode}): column rows differ from the schema`);
+    diagrams.push(d.data);
+
+    for (const code of codes.length > 1 ? codes : []) {
+      d = new DiagramBuilder(code, mode, slugs[code], `${title} — ${moduleName.get(code)}`, moduleName.get(code), code);
+      const own = byModule[code];
+      const ownIds = new Set(own.map((t) => t.id));
+      const touching = refs.filter((r) => ownIds.has(r.from.table) || ownIds.has(r.to.table));
+      if (mode === 'all') {
+        const within = touching.filter((r) => ownIds.has(r.from.table) && ownIds.has(r.to.table)).length;
+        inner += within;
+        outer += touching.length - within;
+      }
+      const otherColumns = new Map();
+      for (const r of touching) for (const end of [r.from, r.to]) {
+        if (ownIds.has(end.table)) continue;
+        if (!otherColumns.has(end.table)) otherColumns.set(end.table, new Set());
+        for (const c of end.columns) otherColumns.get(end.table).add(c);
+      }
+      const others = [...otherColumns.keys()].map((id) => byId.get(id))
+        .sort((a, b) => codes.indexOf(a.module) - codes.indexOf(b.module) || byName(a.name, b.name));
+      const otherCodes = codes.filter((c) => others.some((t) => t.module === c));
+      const layout = layoutModule(own.map((t) => [t.id, cardHeight(shown(t).size)]),
+        otherCodes.map((c) => [c, others.filter((t) => t.module === c).map((t) => [t.id, cardHeight(otherColumns.get(t.id).size)])]));
+      const ownArea = d.addArea(moduleName.get(code), layout.areas.own, code);
+      for (const t of own) d.addTable(t, shown(t), layout.positions[t.id], ownArea);
+      const otherArea = Object.fromEntries(otherCodes.map((c) => [c, d.addArea(moduleName.get(c), layout.areas[c], c)]));
+      for (const t of others) d.addTable(t, otherColumns.get(t.id), layout.positions[t.id], otherArea[t.module]);
+      for (const r of touching) d.addRef(r);
+      summary.push(d.check(own.length + others.length, touching.length, 1 + otherCodes.length));
+      diagrams.push(d.data);
+    }
+  }
+  if (codes.length > 1 && (inner + Math.floor(outer / 2) !== refs.length || outer % 2)) {
+    throw new Error(`references by module do not add up: inside ${inner}, outward ${outer}`);
+  }
+  // shared table list: columns with notes and foreign-key targets; diagrams point into it by id
+  const linkTargets = new Map();
+  for (const r of refs) r.from.columns.forEach((column, i) => {
+    const key = `${r.from.table}\u0000${column}`;
+    if (!linkTargets.has(key)) linkTargets.set(key, []);
+    const links = linkTargets.get(key);
+    if (!links.some(([t, c]) => t === r.to.table && c === r.to.columns[i])) links.push([r.to.table, r.to.columns[i]]);
+  });
+  const registry = {};
+  let notes = 0;
+  for (const t of tables) {
+    const columns = t.columns.map((c) => {
+      const item = [c.name, c.type, (c.pk ? FLAG.PK : 0) | (fkColumns.get(t.id).has(c.name) ? FLAG.FK : 0) | (c.nullable ? FLAG.NULLABLE : 0), c.note];
+      if (c.note) notes++;
+      const links = linkTargets.get(`${t.id}\u0000${c.name}`);
+      if (links) item.push(links);
+      return item;
+    });
+    registry[t.id] = { name: t.name, slug: tableSlug(t.id), module: t.module, status: t.status, title: t.title, note: t.note, columns };
+  }
+  const data = {
+    lang: schema.lang,
+    card: { width: LAYOUT.cardW, head: LAYOUT.cardHead, row: LAYOUT.row, areaTop: LAYOUT.areaTop, areaPad: LAYOUT.areaPad, areaGap: LAYOUT.areaGap },
+    modules: codes.map((c) => ({ code: c, name: moduleName.get(c), dark: colors.get(c)[0], light: colors.get(c)[1] })),
+    tables: registry, diagrams,
+  };
+  summary.push(`column notes: ${notes} of ${columnsTotal}`,
+    `tables ${tables.length}, columns ${columnsTotal}, references ${refs.length}, modules ${codes.length}`);
+  if (codes.length > 1) summary.push(`references inside modules ${inner}, between modules ${Math.floor(outer / 2)}`);
+  summary.push('cards overlap: 0; every table inside its area; areas do not overlap');
+  return { data, summary };
+}
+</script>
 <script>
 'use strict';
 /*
  * Просмотрщик схемы на одном <canvas>: ни одного узла DOM на таблицу, столбец или связь.
- * Данные встроены выше (их кладёт build_diagram.py): размеры карточки, модули с цветами, диаграммы в двух видах.
+ * Схема (schema.json) дописана в конец страницы; ядро выше (schemap-core) проверяет её и раскладывает в диаграммы.
  * Рисуется только то, что попадает в окно. Чем мельче масштаб, тем проще карточка:
  * цветной прямоугольник → шапка с именем → полоски вместо строк → строки с текстом.
  * Для проверок из консоли — window.__diagram.
  */
-const PK = 1, FK = 2, NULLABLE = 4;
+const { PK, FK, NULLABLE } = FLAG;   // пометки столбца, как их пишет ядро
 // Interface strings. The language comes from the embedded data ("lang"); a new language is one more entry here.
 const STRINGS = {
   en: {
@@ -310,7 +739,7 @@ const STRINGS = {
     searchLabel: 'Find a table', zoom: 'Zoom', zoomOut: 'Zoom out', zoomIn: 'Zoom in', fit: 'Fit',
     details: 'Table details', copyLink: 'Copy link', copied: 'Link copied', close: 'Close',
     columns: 'Columns', incoming: 'Referenced by', notFound: 'Not found', required: 'required',
-    allTables: 'All tables', failure: 'The diagram did not open. Reload the page.',
+    allTables: 'All tables', failure: 'The diagram did not open.',
     modeMenu: 'Columns shown', modeAll: 'All columns', modeKeys: 'Keys only', minimap: 'Diagram map',
     statusLabel: { new: 'new', changed: 'changes', same: '' },                  // mark in the card header
     statusName: { new: 'new', changed: 'changes', same: 'unchanged' },          // status in the details panel
@@ -321,7 +750,7 @@ const STRINGS = {
     searchLabel: 'Поиск таблицы', zoom: 'Масштаб', zoomOut: 'Уменьшить', zoomIn: 'Увеличить', fit: 'Весь вид',
     details: 'Описание таблицы', copyLink: 'Скопировать ссылку', copied: 'Ссылка скопирована', close: 'Закрыть',
     columns: 'Столбцы', incoming: 'Ссылаются сюда', notFound: 'Не найдено', required: 'обязательный',
-    allTables: 'Все таблицы', failure: 'Схема не открылась. Обновите страницу.',
+    allTables: 'Все таблицы', failure: 'Схема не открылась.',
     modeMenu: 'Какие столбцы показать', modeAll: 'Все столбцы', modeKeys: 'Только ключи', minimap: 'Карта схемы',
     statusLabel: { new: 'новая', changed: 'меняется', same: '' },
     statusName: { new: 'новая', changed: 'меняется', same: 'без изменений' },
@@ -1469,7 +1898,9 @@ document.addEventListener('keydown', (event) => {
 
 // ---------- запуск ----------
 function start() {
-  DATA = JSON.parse(document.getElementById('diagram-data').textContent);
+  const source = document.getElementById('schema');
+  if (!source) throw new Error('no schema on the page: it goes after the viewer, in a JSON script element with id "schema"');
+  DATA = layoutSchema(JSON.parse(source.textContent)).data;
   applyStrings(DATA.lang);
   CARD = DATA.card;
   MODULES = new Map(DATA.modules.map((m) => [m.code, m]));
@@ -1500,13 +1931,16 @@ function start() {
   new MutationObserver(refreshTheme).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
   window.__diagram = { view, draw, fit, pan, zoomAt, gesture, select, showTable, goToTable, openDiagram, openAddress, address, setMode, refreshTheme };   // для проверок из консоли
 }
-try {
-  start();
-} catch (error) {
-  console.error(error);
-  for (const id of ['diagram-panel', 'status-panel', 'mode-panel', 'minimap-panel', 'search-panel', 'zoom-panel', 'details', 'tip', 'canvas']) document.getElementById(id).hidden = true;
-  document.getElementById('failure-text').textContent = TEXT.failure;
-  document.getElementById('failure-reason').textContent = error && error.message ? error.message : String(error);
-  document.getElementById('failure').hidden = false;
-}
+// схема дописана в конец страницы, после этого кода, — старт, когда страница прочитана целиком
+document.addEventListener('DOMContentLoaded', () => {
+  try {
+    start();
+  } catch (error) {
+    console.error(error);
+    for (const id of ['top-left', 'minimap-panel', 'search-panel', 'zoom-panel', 'details', 'tip', 'canvas']) document.getElementById(id).hidden = true;
+    document.getElementById('failure-text').textContent = TEXT.failure;
+    document.getElementById('failure-reason').textContent = error && error.message ? error.message : String(error);
+    document.getElementById('failure').hidden = false;
+  }
+});
 </script>

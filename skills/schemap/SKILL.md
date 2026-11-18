@@ -7,7 +7,11 @@ description: Use when someone wants to see, explain, review or share a database 
 
 The result is one HTML file that works offline, or a private claude.ai artifact page. It shows every table, column and foreign key, grouped into coloured modules, and stays readable at 200+ tables. Viewers can zoom, find a table, click a table to light up its links and read column notes. Highlighted links show "many" and "one" at their ends. A switch hides everything but keys (primary keys and both ends of every reference), which makes a big schema several times smaller. They can also filter by status (new / changing), move around with a minimap, and open a link that lands on one table.
 
-The tools are in `scripts/` next to this file; below, `<skill-dir>` is this skill's folder (the one that holds this SKILL.md). They need Python 3.9+ and nothing else.
+Below, `<skill-dir>` is this skill's folder (the one that holds this SKILL.md). In it:
+
+- `viewer.html` — the whole viewer. It reads `schema.json` from the page, checks it and lays it out in the browser. A page is `viewer.html` with the schema appended.
+- `check.mjs` — checks `schema.json` with the viewer's own code and writes the page. Needs Node 18+.
+- `importers/` — turn SQL, Prisma, DBML or a live Postgres database into `schema.json`. Need Python 3.9+. Optional: `schema.json` can also be written by hand.
 
 ## Workflow
 
@@ -20,11 +24,23 @@ The tools are in `scripts/` next to this file; below, `<skill-dir>` is this skil
    - **Language.** Set `lang` to the reader's language (`en` or `ru`). It controls the viewer's interface.
 
    The format, with every field and its default, is in [schema-format.md](schema-format.md).
-4. **Build:** `python3 "<skill-dir>/scripts/build_diagram.py" schema.json -o diagram.html`. The build checks the input and the layout. Any `FAILED:` line names the problem. Fix it in `schema.json`, never in the HTML.
+4. **Build:** `node "<skill-dir>/check.mjs" schema.json -o diagram.html`. It prints every problem in `schema.json` and writes nothing until there are none. Fix problems in `schema.json`, never in the HTML.
+
+   Without Node, put the page together by hand and open it: the viewer shows the same problems in place of the diagram.
+
+   ```bash
+   { echo '<!doctype html>'; cat "<skill-dir>/viewer.html"; printf '<script id="schema" type="application/json">'; cat schema.json; echo '</script>'; } > diagram.html
+   ```
+
+   ```powershell
+   "<!doctype html>`n" + (Get-Content -Raw "<skill-dir>\viewer.html") + '<script id="schema" type="application/json">' + (Get-Content -Raw schema.json) + '</script>' | Set-Content -Encoding utf8 diagram.html
+   ```
+
+   If any text in `schema.json` contains `</`, write it as `<\/` (the same string in JSON); `check.mjs` does this itself.
 5. **Deliver** the way the user asked:
    - **File:** `diagram.html` opens with a double click, without a server or internet. A link of the form `diagram.html#<diagram>--<table>` opens on one table.
-   - **Link (claude.ai artifact):** build with `--artifact` (it writes `diagram.artifact.html` without `<html>`/`<head>`/`<body>`, as artifacts require). Then publish that file with the Artifact tool. The page is private to the user until they share it. A schema can be confidential (a client's or employer's database), so publish only when the user wants a link. In the page, choosing a table updates the claude.ai address, so Share → Copy link points at that table.
-6. **Verify before saying it is done.** Compare the counts the build printed (tables, columns, references) with the source. Open the result: on an artifact, click one table and check that its links light up. Report the numbers and anything the importer could not read.
+   - **Link (claude.ai artifact):** build with `--artifact` (`node "<skill-dir>/check.mjs" schema.json -o diagram.artifact.html --artifact`; by hand, leave out the `<!doctype html>` line), as artifacts take a page without its own `<html>`/`<head>`/`<body>`. Publish that file with the Artifact tool and pass the schema's title as `title`. The page is private to the user until they share it. A schema can be confidential (a client's or employer's database), so publish only when the user wants a link. In the page, choosing a table updates the claude.ai address, so Share → Copy link points at that table.
+6. **Verify before saying it is done.** Compare the counts `check.mjs` printed (tables, columns, references) with the source. Open the result: on an artifact, click one table and check that its links light up. Report the numbers and anything the importer could not read.
 
 To update a diagram later, change the source or `schema.json` and rebuild. Republish the artifact to the same URL.
 
@@ -32,20 +48,22 @@ To update a diagram later, change the source or `schema.json` and rebuild. Repub
 
 | The project has | Run | Notes |
 |---|---|---|
-| SQL migrations or a schema dump | `python3 "<skill-dir>/scripts/import_sql.py" migrations/ -o schema.json` | Replays CREATE/ALTER/DROP TABLE and COMMENT ON in file-name order; goose and dbmate files, `*.up.sql` |
-| A Postgres database (11+) | `psql "$DATABASE_URL" -X -A -t -f "<skill-dir>/scripts/postgres_schema.sql" -o schema.json` | Exact, and read-only. Ask before connecting to anything but a local or development database. Never write a connection string into a file. Drop system modules (Supabase `auth`, `storage`…) the reader does not need |
-| `schema.prisma` | `python3 "<skill-dir>/scripts/import_prisma.py" prisma/schema.prisma -o schema.json` | Uses database names (`@@map`, `@map`); `///` comments become notes |
-| A DBML file | `python3 "<skill-dir>/scripts/import_dbml.py" schema.dbml -o schema.json` | `TableGroup`s become modules |
-| A written spec or docs, no code yet | Write `schema.json` by hand from the text, then `build_diagram.py schema.json --check` | List every table the text names; keep the spec's own words for titles and notes |
+| SQL migrations or a schema dump | `python3 "<skill-dir>/importers/import_sql.py" migrations/ -o schema.json` | Replays CREATE/ALTER/DROP TABLE and COMMENT ON in file-name order; goose and dbmate files, `*.up.sql` |
+| A Postgres database (11+) | `psql "$DATABASE_URL" -X -A -t -f "<skill-dir>/importers/postgres_schema.sql" -o schema.json` | Exact, and read-only. Ask before connecting to anything but a local or development database. Never write a connection string into a file. Drop system modules (Supabase `auth`, `storage`…) the reader does not need |
+| `schema.prisma` | `python3 "<skill-dir>/importers/import_prisma.py" prisma/schema.prisma -o schema.json` | Uses database names (`@@map`, `@map`); `///` comments become notes |
+| A DBML file | `python3 "<skill-dir>/importers/import_dbml.py" schema.dbml -o schema.json` | `TableGroup`s become modules |
+| A written spec or docs, no code yet | Write `schema.json` by hand from the text, then `node "<skill-dir>/check.mjs" schema.json` | List every table the text names; keep the spec's own words for titles and notes |
 | Another ORM (Rails, Django, Drizzle, TypeORM…) | Get SQL first: `rails db:schema:dump` with `structure.sql`, `python manage.py sqlmigrate`, `drizzle-kit export`, then `import_sql.py` | Or a live database, if one runs locally |
+| Another database (MySQL, SQLite, SQL Server…) and no Python | Ask the database for its tables, columns and foreign keys (`information_schema`, `PRAGMA table_info`) and write `schema.json` from the answer | The format is small; [schema-format.md](schema-format.md) has an example |
 
-The Python importers take `--title` (the page name) and `--lang`, and check the file they write with the build's own validation. The Postgres query writes the database name as `title` and `en` as `lang`; change them in `schema.json`.
+The Python importers take `--title` (the page name) and `--lang`. The Postgres query writes the database name as `title` and `en` as `lang`; change them in `schema.json`.
 
 ## When the build or a page goes wrong
 
 | Symptom | Cause and fix |
 |---|---|
-| `FAILED: … does not match the format` | The listed field is missing or wrong in `schema.json`. Fix it there |
+| `check.mjs` lists problems, or the page shows "The diagram did not open" with reasons | The named field is missing or wrong in `schema.json`. Fix it there |
+| The page shows its own code as text | A `</` in `schema.json` closed the script early. Write it as `<\/`, or build with `check.mjs` |
 | `references left out … table not in these files` | A foreign key points outside the migrations (e.g. Supabase `auth.users`). Tell the user. Add the table to `schema.json` only if it should be on the diagram |
 | One huge grey area on the overview | Everything is in one module. Split it into domain modules (step 3) |
 | Card names cut off with "…" | Names longer than the card. Expected; the full name is in the details panel |

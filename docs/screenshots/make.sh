@@ -9,9 +9,10 @@ CHROME="${CHROME:-/Applications/Google Chrome.app/Contents/MacOS/Google Chrome}"
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 
-# a copy of the page with a script that runs after the viewer started: sets a view the address cannot
+# a copy of the page with a script that runs after the viewer started (it starts on DOMContentLoaded,
+# this one on load, which comes later): sets a view the address cannot
 variant() {  # name, script
-  sed "s#</body>#<script>$2</script></body>#" "$SRC" > "$TMP/$1.html"
+  { cat "$SRC"; echo "<script>addEventListener('load', () => { $2 })</script>"; } > "$TMP/$1.html"
 }
 # a table selected, framed with its whole module at a readable zoom (the address alone would centre the card)
 frame() { echo "const k=window.__diagram,v=k.view;k.openAddress('$1');v.zoom=0.85;v.tx=40;v.ty=96;v.fitted=false;k.draw();"; }

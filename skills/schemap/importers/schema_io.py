@@ -1,8 +1,8 @@
 """What the importers share: reading quoted and bracketed text, the command line, writing schema.json, the report.
 
 Stdlib only. The importers run as scripts from this folder and import it as a sibling (import_*.py put this
-folder on sys.path first, because `python3 -I` leaves it out). The written file is checked by the same
-load_schema() that build_diagram.py uses, so an importer cannot hand the build a file it would reject.
+folder on sys.path first, because `python3 -I` leaves it out). The format is checked by the viewer itself
+(and by check.mjs, which runs the same code); the importers only write it.
 """
 import argparse
 import json
@@ -10,9 +10,9 @@ import sys
 from pathlib import Path
 from typing import NoReturn
 
-from build_diagram import LANGS, SchemaError, load_schema
 
 DEFAULT_SCHEMA = 'public'
+LANGS = ('en', 'ru')   # interface languages the viewer has
 QUOTES = "'\"`"
 REPORT_LIMIT = 20
 
@@ -73,7 +73,7 @@ def add_ref(refs, from_table, from_columns, to_table, to_columns):
 # ---------- command line, files, result ----------
 
 def parse_args(description, source_help, many=False):
-    parser = argparse.ArgumentParser(description=f'{description} → schema.json for build_diagram.py')
+    parser = argparse.ArgumentParser(description=f'{description} → schema.json for the schemap viewer')
     parser.add_argument('sources', nargs='+' if many else 1, help=source_help)
     parser.add_argument('-o', '--output', required=True, help='where to write schema.json')
     parser.add_argument('--title', default='Database', help='page name')
@@ -97,15 +97,11 @@ def collect_files(paths, pattern, skip=lambda path: False):
 
 
 def write_schema(args, tables, refs, modules=None):
-    """Writes schema.json and checks it with build_diagram's own validation. modules default: one per schema."""
+    """Writes schema.json. modules default: one per schema."""
     if modules is None:
         modules = [{'code': code, 'name': code} for code in sorted({t['module'] for t in tables})]
     data = {'title': args.title, 'lang': args.lang, 'modules': modules, 'tables': tables, 'refs': refs}
     Path(args.output).write_text(json.dumps(data, ensure_ascii=False, indent=1), encoding='utf-8')
-    try:
-        load_schema(args.output)
-    except SchemaError as error:
-        fail(f'{args.output} was written but does not match the format:\n{error}')
     return data
 
 
