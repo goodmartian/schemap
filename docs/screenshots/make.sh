@@ -24,4 +24,4 @@ shot() {  # file, page, extra flags
     ${3:-} --screenshot="$OUT/$1" "file://$TMP/$2.html" >/dev/null 2>&1
   echo "$1: $(wc -c < "$OUT/$1" | tr -d ' ') bytes"
 }
-shot table.png table
+shot table.webp table

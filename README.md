@@ -2,7 +2,7 @@
 
 A skill for coding agents that draws a database schema as one HTML file or a claude.ai artifact.
 
-![The orders table selected: its links highlighted, its columns in the side panel](docs/screenshots/table.png)
+![The orders table selected: its links highlighted, its columns in the side panel](docs/screenshots/table.webp)
 
 Sources: SQL migrations, a Postgres database, Prisma, DBML, or a written spec.
 
@@ -47,6 +47,13 @@ node skills/schemap/check.mjs schema.json -o diagram.html
 - The importers in `skills/schemap/importers/` need Python 3.9+.
 
 Tests: `python3 tests/run_checks.py`.
+
+## What the plugin runs
+
+- `node check.mjs` and the Python importers read local files and write `schema.json` and the page. No network.
+- `psql` with `importers/postgres_schema.sql` runs one read-only query against the system catalogs of the database the user names.
+- The page loads nothing from the network.
+- An artifact is published to claude.ai only when the user asks for a link.
 
 ## License
 

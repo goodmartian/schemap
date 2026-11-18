@@ -5,7 +5,7 @@
     {
       "name": "schemap",
       "source": "./",
-      "description": "Readable diagrams of large database schemas: one offline HTML file or a private claude.ai artifact link."
+      "description": "Draws a database schema as one HTML file or a claude.ai artifact."
     }
   ]
 }
