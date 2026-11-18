@@ -16,6 +16,8 @@ Below, `<skill-dir>` is this skill's folder (the one that holds this SKILL.md). 
 ## Workflow
 
 1. **Get `schema.json`** from the source the project actually has (table below). Write it next to the diagram, in the user's project or in a folder they name.
+
+   When the project has several sources, take the one the others are made from: a DBML or SQL file generated from a model or a database can be out of date. Compare their table, column and reference counts, and tell the user which source is behind.
 2. **Read what the importer printed.** Pass every "not understood" or "left out" line to the user. Never fill a gap with a guess.
 3. **Shape it for the reader.** This is the step that makes the diagram useful, so do not skip it:
    - **Modules.** Group tables into 4–12 domain modules. A database with a single schema (`public`) comes out as one module, and one module of 100 tables is unreadable. Group by name prefix and by foreign-key clusters, and name modules in the reader's words ("Orders and payments", not "sales").
@@ -52,6 +54,7 @@ To update a diagram later, change the source or `schema.json` and rebuild. Repub
 | A Postgres database (11+) | `psql "$DATABASE_URL" -X -A -t -f "<skill-dir>/importers/postgres_schema.sql" -o schema.json` | Exact, and read-only. Ask before connecting to anything but a local or development database. Never write a connection string into a file. Drop system modules (Supabase `auth`, `storage`…) the reader does not need |
 | `schema.prisma` | `python3 "<skill-dir>/importers/import_prisma.py" prisma/schema.prisma -o schema.json` | Uses database names (`@@map`, `@map`); `///` comments become notes |
 | A DBML file | `python3 "<skill-dir>/importers/import_dbml.py" schema.dbml -o schema.json` | `TableGroup`s become modules |
+| Its own schema model: a JSON or YAML file that its DBML, SQL or docs are generated from | A short script in the project, next to the model, that maps it to `schema.json`; keep it so the diagram can be rebuilt | Usually the richest source: statuses, titles and notes live there, while DBML and SQL have no field for a title or a status. Its counts must match the model's |
 | A written spec or docs, no code yet | Write `schema.json` by hand from the text, then `node "<skill-dir>/check.mjs" schema.json` | List every table the text names; keep the spec's own words for titles and notes |
 | Another ORM (Rails, Django, Drizzle, TypeORM…) | Get SQL first: `rails db:schema:dump` with `structure.sql`, `python manage.py sqlmigrate`, `drizzle-kit export`, then `import_sql.py` | Or a live database, if one runs locally |
 | Another database (MySQL, SQLite, SQL Server…) and no Python | Ask the database for its tables, columns and foreign keys (`information_schema`, `PRAGMA table_info`) and write `schema.json` from the answer | The format is small; [schema-format.md](schema-format.md) has an example |

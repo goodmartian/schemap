@@ -101,7 +101,9 @@ def write_schema(args, tables, refs, modules=None):
     if modules is None:
         modules = [{'code': code, 'name': code} for code in sorted({t['module'] for t in tables})]
     data = {'title': args.title, 'lang': args.lang, 'modules': modules, 'tables': tables, 'refs': refs}
-    Path(args.output).write_text(json.dumps(data, ensure_ascii=False, indent=1), encoding='utf-8')
+    output = Path(args.output)
+    output.parent.mkdir(parents=True, exist_ok=True)
+    output.write_text(json.dumps(data, ensure_ascii=False, indent=1), encoding='utf-8')
     return data
 
 

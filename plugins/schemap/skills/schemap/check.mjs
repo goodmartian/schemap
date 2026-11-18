@@ -3,7 +3,7 @@
 //   node check.mjs schema.json -o diagram.html       → page to open from disk
 //   node check.mjs schema.json -o page.html --artifact → page for a claude.ai artifact (no <!doctype>)
 // Needs only Node 18+: the layout code is read out of viewer.html, so there is one copy of it.
-import { readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import vm from 'node:vm';
@@ -38,6 +38,7 @@ if (out) {
   // "</" inside the JSON would close the <script> early; "<\/" is the same string to JSON.parse
   const schema = text.trim().replace(/<\//g, '<\\/');
   const page = `${artifact ? '' : '<!doctype html>\n'}${viewer.trimEnd()}\n<script id="schema" type="application/json">${schema}</script>\n`;
+  mkdirSync(dirname(out), { recursive: true });
   writeFileSync(out, page);
   console.log(`wrote ${out}`);
 }
