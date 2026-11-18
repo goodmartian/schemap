@@ -1909,7 +1909,13 @@ document.addEventListener('keydown', (event) => {
 function start() {
   const source = document.getElementById('schema');
   if (!source) throw new Error('no schema on the page: it goes after the viewer, in a JSON script element with id "schema"');
-  DATA = layoutSchema(JSON.parse(source.textContent)).data;
+  const raw = JSON.parse(source.textContent);
+  // без "lang" в схеме — язык браузера, если он есть у просмотрщика; иначе английский
+  if (raw && typeof raw === 'object' && !('lang' in raw)) {
+    const tags = navigator.languages && navigator.languages.length ? navigator.languages : [navigator.language || ''];
+    raw.lang = tags.map((tag) => tag.toLowerCase().split('-')[0]).find((code) => SCHEMA_LANGS.includes(code)) || 'en';
+  }
+  DATA = layoutSchema(raw).data;
   applyStrings(DATA.lang);
   CARD = DATA.card;
   MODULES = new Map(DATA.modules.map((m) => [m.code, m]));

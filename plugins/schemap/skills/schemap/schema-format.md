@@ -34,7 +34,7 @@ What the viewer reads, and what every importer writes. One JSON object. The view
 | Field | Required | Meaning |
 |---|---|---|
 | `title` | no, default `Database` | Page name; the browser tab shows it with the open diagram: "Shop — overview" |
-| `lang` | no, default `en` | Viewer interface language: `en` or `ru` |
+| `lang` | no, default: the reader's browser language if it is `en` or `ru`, otherwise `en` | Viewer interface language: `en` or `ru`. Set it only to fix one language for every reader |
 | `modules` | no, default: one per distinct table `module`, named by its code | Display order and names of the coloured areas. If given, it must list every module the tables use and no others |
 | `tables[].id` | yes | Unique id; `schema.table` by convention |
 | `tables[].name` | yes | Table name as in the database |

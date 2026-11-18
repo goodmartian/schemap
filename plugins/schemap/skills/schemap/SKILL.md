@@ -23,7 +23,7 @@ Below, `<skill-dir>` is this skill's folder (the one that holds this SKILL.md). 
    - **Modules.** Group tables into 4–12 domain modules. A database with a single schema (`public`) comes out as one module, and one module of 100 tables is unreadable. Group by name prefix and by foreign-key clusters, and name modules in the reader's words ("Orders and payments", not "sales").
    - **Titles and notes.** Give each table a human `title` in the reader's language. Add `note`s where a column's meaning is not obvious from its name. Take the words from the project (docs, comments, the spec). Do not invent meaning.
    - **Statuses.** When the diagram shows planned changes, mark tables as `new`, `changed` or `same`. The viewer then offers a status filter.
-   - **Language.** Set `lang` to the reader's language (`en` or `ru`). It controls the viewer's interface.
+   - **Language.** Without `lang` the viewer's interface follows the reader's browser (English, or Russian; any other language gets English). Set `lang` (`en` or `ru`) only when every reader must see one language.
 
    The format, with every field and its default, is in [schema-format.md](schema-format.md).
 4. **Build:** `node "<skill-dir>/check.mjs" schema.json -o diagram.html`. It prints every problem in `schema.json` and writes nothing until there are none. Fix problems in `schema.json`, never in the HTML.
@@ -59,7 +59,7 @@ To update a diagram later, change the source or `schema.json` and rebuild. Repub
 | Another ORM (Rails, Django, Drizzle, TypeORM…) | Get SQL first: `rails db:schema:dump` with `structure.sql`, `python manage.py sqlmigrate`, `drizzle-kit export`, then `import-sql.mjs` | Or a live database, if one runs locally |
 | Another database (MySQL, SQLite, SQL Server…) | Ask the database for its tables, columns and foreign keys (`information_schema`, `PRAGMA table_info`) and write `schema.json` from the answer | The format is small; [schema-format.md](schema-format.md) has an example |
 
-The importers take `--title` (the page name) and `--lang`. The Postgres query writes the database name as `title` and `en` as `lang`; change them in `schema.json`.
+The importers take `--title` (the page name) and `--lang`; without `--lang` the file has no `lang`. The Postgres query writes the database name as `title`; change it in `schema.json`.
 
 ## When the build or a page goes wrong
 

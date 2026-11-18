@@ -53,7 +53,6 @@ fks AS (
 )
 SELECT json_build_object(
   'title', current_database(),
-  'lang', 'en',
   'modules', (SELECT json_agg(json_build_object('code', s, 'name', s) ORDER BY s) FROM (SELECT DISTINCT schema AS s FROM t) m),
   'tables', (SELECT json_agg(json_build_object(
                 'id', t.schema || '.' || t.name,

@@ -78,7 +78,8 @@ export function addRef(refs, fromTable, fromColumns, toTable, toColumns) {
 export function parseArgs(script, description, sourceHelp, many = false) {
   const usage = `usage: node ${script} ${many ? 'SOURCE [SOURCE …]' : 'SOURCE'} -o schema.json [--title NAME] [--lang ${LANGS.join('|')}]\n`
     + `${description} → schema.json for the schemap viewer\n  SOURCE  ${sourceHelp}`;
-  const args = { sources: [], output: null, title: 'Database', lang: 'en' };
+  // no --lang: the file has no "lang", and the viewer follows the reader's browser
+  const args = { sources: [], output: null, title: 'Database', lang: null };
   const argv = process.argv.slice(2);
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i];
@@ -94,7 +95,7 @@ export function parseArgs(script, description, sourceHelp, many = false) {
   const problem = !args.output ? '-o is required'
     : !args.sources.length ? 'no source given'
       : !many && args.sources.length > 1 ? 'one source only'
-        : !LANGS.includes(args.lang) ? `--lang must be one of ${LANGS.join(', ')}` : null;
+        : args.lang !== null && !LANGS.includes(args.lang) ? `--lang must be one of ${LANGS.join(', ')}` : null;
   if (problem) { console.error(`${usage}\n${problem}`); process.exit(2); }
   return args;
 }
@@ -130,7 +131,7 @@ export const readFiles = (files) => files.map((f) => readFileSync(f, 'utf8'));
 /** Writes schema.json. modules default: one per schema. */
 export function writeSchema(args, tables, refs, modules = null) {
   if (modules === null) modules = [...new Set(tables.map((t) => t.module))].sort().map((code) => ({ code, name: code }));
-  const data = { title: args.title, lang: args.lang, modules, tables, refs };
+  const data = { title: args.title, ...(args.lang && { lang: args.lang }), modules, tables, refs };
   mkdirSync(dirname(args.output), { recursive: true });
   writeFileSync(args.output, JSON.stringify(data, null, 1));
   return data;
