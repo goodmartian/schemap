@@ -146,12 +146,18 @@ await hold(0.7);
 await moveTo(await tableAt('orders.orders'));
 await click();                                         // the table: its links and the panel
 await hold(1.6);
-await moveTo(await centre('#mode-button'));
+const keysItem = '#view-menu li:nth-child(1) button';
+await moveTo(await centre('#view-button'));
+await click();                                         // the View menu
+await hold(0.4);
+await moveTo(await centre(keysItem));
 await click();                                         // keys only
 await moveTo(await centre('#zoom-fit'));
 await click();                                         // the whole store fits
 await hold(1.6);
-await moveTo(await centre('#mode-button'));
+await moveTo(await centre('#view-button'));
+await click();
+await moveTo(await centre(keysItem));
 await click();
 await moveTo(await centre('#search-button'));
 await click();

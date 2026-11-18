@@ -27,7 +27,7 @@
     --control-height: 32px;
     --icon-size: 16px;
     --key-width: 24px;                 /* колонка PK / FK у столбцов в панели описания */
-    --search-width: 360px;             /* поиск: имя таблицы и её модуль без многоточия */
+    --search-width: 480px;             /* поиск: имя таблицы и её модуль без многоточия */
     --menu-width: 264px;
     --details-width: 360px;
     --tip-width: 320px;
@@ -105,7 +105,14 @@
     position: absolute; top: calc(100% + var(--space-2)); left: calc(-1 * var(--space-1) - 1px);
     min-width: 100%; width: max-content; max-width: var(--menu-width); margin: 0;
   }
-  #search-panel { width: var(--search-width); max-width: calc(100vw - 2 * var(--edge-left)); }
+  /* поиск — внутри самой панели: пока он открыт, остальные кнопки скрыты, панель становится строкой поиска
+     и растёт вниз списком найденного; рамку и тень даёт панель, у поиска своих нет */
+  #toolbar:has(#search-panel:not([hidden])) > :not(#search-tool),
+  #toolbar:has(#search-panel:not([hidden])) #search-button { display: none; }
+  #search-panel {
+    position: static; padding: 0; border: 0; background: none; box-shadow: none;
+    width: min(var(--search-width), calc(100vw - 2 * var(--edge-left) - 2 * var(--space-1) - 2px)); min-width: 0; max-width: none;
+  }
   #zoom-panel { right: var(--edge-right); bottom: var(--edge-bottom); display: flex; gap: var(--space-1); }
   #zoom-fit { min-width: var(--control-height); justify-content: center; font-variant-numeric: tabular-nums; }   /* масштаб в процентах; нажатие — весь вид */
   .control {
@@ -131,10 +138,12 @@
   .control:hover, .control:hover .chevron { color: var(--color-text); }
   /* включённый вид (только ключи) и включённый фильтр — кнопка нажата, как инструмент в Figma */
   .square[aria-pressed="true"] { background: var(--color-row-hover); color: var(--color-text); }
+  /* пункт-переключатель: галочка слева, пока включён, — место под неё есть всегда, подписи стоят ровно */
+  [role="menuitemcheckbox"][aria-checked="false"] .check { visibility: hidden; }
   .control:focus-visible { outline: 2px solid var(--color-accent); outline-offset: -2px; }
   .square { width: var(--control-height); justify-content: center; padding: 0; }
   /* у поиска фокус показывает вся панель: поле внутри своей рамки не рисует */
-  #search-panel:focus-within { border-color: var(--color-accent); box-shadow: 0 0 0 1px var(--color-accent), var(--shadow-overlay); }
+  #toolbar:has(#search:focus) { border-color: var(--color-accent); box-shadow: 0 0 0 1px var(--color-accent), var(--shadow-overlay); }
   /* мини-карта: вся диаграмма и рамка окна; нажатие переносит туда вид */
   #minimap-panel { left: var(--edge-left); bottom: var(--edge-bottom); }
   @media (max-height: 559px) { #minimap-panel { display: none; } }   /* в низком окне она закрывала бы таблицы */
@@ -264,18 +273,20 @@
     <ul id="status-menu" class="panel popover" hidden></ul>
   </div>
   <div class="tool">
-    <button id="mode-button" class="control square" type="button" aria-pressed="false" data-label="modeKeys" data-title="modeKeysHint"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M2.586 17.414A2 2 0 0 0 2 18.828V21a1 1 0 0 0 1 1h3a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h1a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h.172a2 2 0 0 0 1.414-.586l.814-.814a6.5 6.5 0 1 0-4-4z"/><circle cx="16.5" cy="7.5" r=".5" fill="currentColor"/></svg></button>
+    <button id="view-button" class="control square" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="view-menu" aria-pressed="false" data-label="viewMenu" data-title="viewMenu"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"/><circle cx="12" cy="12" r="3"/></svg></button>
+    <ul id="view-menu" class="panel popover" role="menu" hidden></ul>
   </div>
   <div id="export-panel" class="tool">
     <button id="export-button" class="control square" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="export-menu" data-label="exportMenu" data-title="exportMenu"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2v13"/><path d="m16 6-4-4-4 4"/><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/></svg></button>
     <ul id="export-menu" class="panel popover" hidden></ul>
   </div>
-  <div class="tool">
+  <div id="search-tool" class="tool">
     <button id="search-button" class="control square" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="search-panel" aria-keyshortcuts="/ Meta+K Control+K" data-label="searchLabel" data-title="searchHint"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/></svg></button>
     <div id="search-panel" class="panel popover" role="search" hidden>
       <div class="search-row">
         <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/></svg>
         <input id="search" type="search" data-placeholder="search" data-label="searchLabel" autocomplete="off" spellcheck="false">
+        <button id="search-close" class="control square" type="button" data-label="close" data-title="close"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>
       </div>
       <ul id="results" hidden></ul>
     </div>
@@ -729,7 +740,7 @@ function layoutSchema(raw) {
   }
   const data = {
     lang: schema.lang,
-    card: { width: LAYOUT.cardW, head: LAYOUT.cardHead, row: LAYOUT.row, areaTop: LAYOUT.areaTop, areaPad: LAYOUT.areaPad, areaGap: LAYOUT.areaGap },
+    card: { width: LAYOUT.cardW, head: LAYOUT.cardHead, row: LAYOUT.row, gapX: LAYOUT.gapX, areaTop: LAYOUT.areaTop, areaPad: LAYOUT.areaPad, areaGap: LAYOUT.areaGap },
     modules: codes.map((c) => ({ code: c, name: moduleName.get(c), dark: colors.get(c)[0], light: colors.get(c)[1] })),
     tables: registry, diagrams,
   };
@@ -854,6 +865,7 @@ const STRINGS = {
     columns: 'Columns', incoming: 'Referenced by', notFound: 'Not found',
     allTables: 'All tables', failure: 'The diagram did not open.',
     modeKeys: 'Keys only', modeKeysHint: 'Keys only: primary keys and the columns of references', minimap: 'Diagram map',
+    viewMenu: 'View', linesNear: 'Lines up close', linesNearHint: 'When columns are readable. Off: only the column under the pointer shows its references',
     exportMenu: 'Export schema', copy: { dbml: 'Copy DBML', sql: 'Copy SQL' }, save: { dbml: 'Download DBML', sql: 'Download SQL' },
     exportCopied: 'Copied', copyFailed: 'Not copied', exportSaved: 'Saved', saveFailed: 'Not saved',
     statusLabel: { new: 'new', changed: 'changes', same: '' },                  // mark in the card header
@@ -868,6 +880,7 @@ const STRINGS = {
     columns: 'Столбцы', incoming: 'Ссылаются сюда', notFound: 'Не найдено',
     allTables: 'Все таблицы', failure: 'Схема не открылась.',
     modeKeys: 'Только ключи', modeKeysHint: 'Только ключи: первичные ключи и столбцы связей', minimap: 'Карта схемы',
+    viewMenu: 'Вид', linesNear: 'Связи вблизи', linesNearHint: 'Когда столбцы читаются. Выключено — видны только связи столбца под курсором',
     exportMenu: 'Выгрузка схемы', copy: { dbml: 'Скопировать DBML', sql: 'Скопировать SQL' }, save: { dbml: 'Скачать DBML', sql: 'Скачать SQL' },
     exportCopied: 'Скопировано', copyFailed: 'Не скопировано', exportSaved: 'Сохранено', saveFailed: 'Не сохранено',
     statusLabel: { new: 'новая', changed: 'меняется', same: '' },
@@ -911,6 +924,9 @@ const RESULTS_LIMIT = 8;
 const DIM_ALPHA = 0.25;
 // Размеры — на шкале 4 / 8 / 12 / 16 / 24, как в CSS. Шрифты: 13 — имя таблицы, 12 — строки, 11 — служебное.
 const FONT = { table: 13, title: 12, status: 11, column: 12, type: 11, mark: 11 };
+// связи: радиус углов; скобка справа у таблиц одной колонки; дорожки в промежутке — шаг и ширина полосы посередине
+// (по 16 с краёв остаются вилке и черте: на самом мелком масштабе с текстом в них 8 точек экрана)
+const CORNER = 6, BRACKET = 12, LANE_STEP = 8, LANE_ZONE = 32;
 const PAD_X = 12, MARK_W = 24;       // поле карточки слева и справа; колонка пометок PK / FK
 const NAME_Y = 16, TITLE_Y = 32;     // середины строк шапки: поле 8, имя 16, название 16, поле 8 — шапка 48
 const MINIMAP_PAD = 8;               // поле мини-карты от края её панели, в экранных пикселях
@@ -920,7 +936,7 @@ const canvas = document.getElementById('canvas');
 const ctx = canvas.getContext('2d', { alpha: false });
 const toolbar = document.getElementById('toolbar'), searchPanel = document.getElementById('search-panel');
 const view = { diagram: null, zoom: 1, tx: 0, ty: 0, width: 0, height: 0, dpr: 1, hover: -1, selected: -1,
-  hoverRow: null, status: null, mode: 'all', fitZoom: 1, fitted: true, moving: false };
+  hoverRow: null, status: null, mode: 'all', fitZoom: 1, fitted: true, moving: false, quiet: false };
 let SOURCE, DATA, CARD, MODULES, DIAGRAMS, DIAGRAMS_BY_SLUG, TABLES, HAS_STATUS, theme;   // SOURCE — проверенная схема, для выгрузки
 
 // ---------- тема ----------
@@ -1028,6 +1044,20 @@ function prepare(diagram) {
     const lit = Uint8Array.from(diagram.tables, (t) => (t.status === status ? 1 : 0));
     diagram.byStatus[status] = { lit, count: lit.reduce((sum, value) => sum + value, 0) };
   }
+  // Связь — ломаная со скруглёнными углами: от столбца вбок, по дорожке промежутка вверх или вниз, вбок к столбцу.
+  // Дорожка — в промежутке у таблицы, на которую ссылаются. Связи в один столбец идут по одной дорожке и сливаются
+  // в ствол; дорожки, чьи отрезки по высоте пересекаются, разведены на шаг LANE_STEP.
+  // Длинная связь (через колонки или между областями) сначала уходит в свой промежуток на полстроки вверх или вниз
+  // и дальше идёт по границе строк: на высоте середины строки она легла бы на чужую связь и указала бы на чужой столбец.
+  const gaps = new Map();                             // левый край промежутка → группы по столбцу-цели или началу
+  const claim = (left, port, toRight, y0, y1, e, slot) => {
+    if (!gaps.has(left)) gaps.set(left, new Map());
+    const groups = gaps.get(left);
+    if (!groups.has(port)) groups.set(port, { top: y0, bottom: y0, toRight, users: [] });
+    const group = groups.get(port);
+    group.top = Math.min(group.top, y0, y1); group.bottom = Math.max(group.bottom, y0, y1);
+    group.users.push([e, slot]);
+  };
   diagram.edges = diagram.refs.map(([a, ac, b, bc], index) => {
     const from = diagram.tables[a], to = diagram.tables[b];
     if (!from || !to || !from.columns[ac] || !to.columns[bc]) throw new Error('a reference points to a missing column');
@@ -1035,15 +1065,52 @@ function prepare(diagram) {
     from.edges.push(index); to.edges.push(index);
     from.rowEdges[ac].push(index); to.rowEdges[bc].push(index);
     const sy = from.y + HEAD + (ac + 0.5) * ROW, ey = to.y + HEAD + (bc + 0.5) * ROW;
-    let sx, ex, sd, ed;                              // точки выхода и направление изгиба
+    let sx, ex, sd, ed;                              // точки выхода и направление
     if (to.x >= from.x + W) { sx = from.x + W; ex = to.x; sd = 1; ed = -1; }
     else if (to.x + W <= from.x) { sx = from.x; ex = to.x + W; sd = -1; ed = 1; }
     else { sx = from.x + W; ex = to.x + W; sd = 1; ed = 1; }
-    const bend = sd === ed ? 40 : Math.max(32, Math.abs(ex - sx) * 0.4);
-    const c1 = sx + sd * bend, c2 = ex + ed * bend;
-    return { a, ac, b, bc, sx, sy, ex, ey, sd, ed, c1, c2, cross: from.module !== to.module,
-      minX: Math.min(sx, ex, c1, c2), maxX: Math.max(sx, ex, c1, c2), minY: Math.min(sy, ey), maxY: Math.max(sy, ey) };
+    const e = { a, ac, b, bc, sx, sy, ex, ey, sd, ed, lane: sx + BRACKET, out: null, cross: from.module !== to.module,
+      module: to.module };                            // цвет линии — цвет области таблицы, на которую ссылаются
+    if (sd !== ed) {                                  // таблицы в одной колонке и связь таблицы с собой — скобка справа
+      let y = sy;                                     // высота, на которой связь подходит к дорожке у цели
+      if (Math.abs(ex - sx) > CARD.gapX) {
+        y = sy + (ey < sy ? -ROW / 2 : ROW / 2);
+        e.long = y;
+        claim(sd < 0 ? sx - CARD.gapX : sx, `out ${a} ${ac}`, sd > 0, sy, y, e, 'out');
+      }
+      claim(ed < 0 ? ex - CARD.gapX : ex, `in ${b} ${bc} ${ed}`, ed < 0, y, ey, e, 'lane');
+    }
+    return e;
   });
+  for (const [left, groups] of gaps) {
+    // группа берёт первую дорожку, где предыдущая группа кончилась выше её начала
+    const tracks = (toRight) => {
+      const list = [...groups.values()].filter((g) => g.toRight === toRight).sort((p, q) => p.top - q.top);
+      const ends = [];
+      for (const g of list) {
+        let i = ends.findIndex((end) => end + 2 * CORNER < g.top);
+        if (i < 0) i = ends.push(0) - 1;
+        ends[i] = g.bottom; g.track = i;
+      }
+      return { list, count: ends.length };
+    };
+    // к таблице справа дорожки ближе к левому краю, где начинаются связи, к таблице слева — ближе к правому
+    const right = tracks(true), back = tracks(false), total = right.count + back.count;
+    const step = total > 1 ? Math.min(LANE_STEP, LANE_ZONE / (total - 1)) : 0;
+    const first = left + CARD.gapX / 2 - (total - 1) * step / 2;
+    for (const g of right.list) for (const [e, slot] of g.users) e[slot] = first + g.track * step;
+    for (const g of back.list) for (const [e, slot] of g.users) e[slot] = first + (total - 1 - g.track) * step;
+  }
+  for (const e of diagram.edges) {                    // вершины ломаной x, y подряд и радиус каждого угла
+    e.path = e.out === null
+      ? [e.sx, e.sy, e.lane, e.sy, e.lane, e.ey, e.ex, e.ey]
+      : [e.sx, e.sy, e.out, e.sy, e.out, e.long, e.lane, e.long, e.lane, e.ey, e.ex, e.ey];
+    const p = e.path, half = (i) => Math.hypot(p[i + 2] - p[i], p[i + 3] - p[i + 1]) / 2;
+    e.radii = [];
+    for (let i = 2; i < p.length - 2; i += 2) e.radii.push(Math.min(CORNER, half(i - 2), half(i)));
+    const xs = p.filter((_, i) => i % 2 === 0), ys = p.filter((_, i) => i % 2 === 1);
+    e.minX = Math.min(...xs); e.maxX = Math.max(...xs); e.minY = Math.min(...ys); e.maxY = Math.max(...ys);
+  }
   diagram.areas.forEach((area) => {
     if (area.module !== null && !MODULES.has(area.module)) throw new Error(`area ${area.name}: unknown module`);
     area.text = `${area.name}  ${area.count}`;       // как заголовок раздела в панели: название, рядом число
@@ -1063,6 +1130,7 @@ const BUCKET_STYLE = {
   type: [400, FONT.type, 'muted', 'right'],
 };
 const visible = [], dimmed = [], bright = [];       // карточки в окне; при выборе — приглушённые и яркие
+const faint = [];                                     // связи в окне, кроме связей выбранной таблицы
 const placed = [];                                    // уже нарисованные подписи областей: x, y, ширина
 
 // Привязка к пикселям устройства: края прямоугольников и строки текста встают на целый пиксель — так резче
@@ -1216,8 +1284,27 @@ function byColor(tables, group) {
 }
 
 function traceEdge(e) {
-  ctx.moveTo(e.sx, e.sy);
-  ctx.bezierCurveTo(e.c1, e.sy, e.c2, e.ey, e.ex, e.ey);
+  const p = e.path;
+  ctx.moveTo(p[0], p[1]);
+  for (let i = 2; i < p.length - 2; i += 2) ctx.arcTo(p[i], p[i + 1], p[i + 2], p[i + 3], e.radii[i / 2 - 1]);
+  ctx.lineTo(p[p.length - 2], p[p.length - 1]);
+}
+
+// Связи списка (номера в diagram.edges), каждая цветом области таблицы, на которую ссылается: одна обводка на цвет.
+function strokeEdges(diagram, list, widthPx, trace) {
+  const groups = new Map();
+  for (const index of list) {
+    const e = diagram.edges[index], color = moduleColor(e.module);
+    if (!groups.has(color)) groups.set(color, []);
+    groups.get(color).push(e);
+  }
+  ctx.lineWidth = widthPx;
+  for (const [color, edges] of groups) {
+    ctx.strokeStyle = color;
+    ctx.beginPath();
+    for (const e of edges) trace(e);
+    ctx.stroke();
+  }
 }
 
 // Концы подсвеченных связей: «много» — вилка у ссылающегося столбца, «один» — черта у столбца, на который
@@ -1225,18 +1312,13 @@ function traceEdge(e) {
 function edgeEnds(diagram, list, px) {
   const fork = 8 * px, spread = 4 * px, bar = 8 * px;
   ctx.globalAlpha = 1;
-  ctx.strokeStyle = theme.accent;
-  ctx.lineWidth = 1.5 * px;
-  ctx.beginPath();
-  for (const index of list) {
-    const e = diagram.edges[index];
+  strokeEdges(diagram, list, 1.5 * px, (e) => {
     const tip = e.sx + e.sd * fork;                   // вилка: две линии от точки в промежутке к краю карточки
     ctx.moveTo(tip, e.sy); ctx.lineTo(e.sx, e.sy - spread);
     ctx.moveTo(tip, e.sy); ctx.lineTo(e.sx, e.sy + spread);
     const x = e.ex + e.ed * bar;                      // черта поперёк линии
     ctx.moveTo(x, e.ey - spread); ctx.lineTo(x, e.ey + spread);
-  }
-  ctx.stroke();
+  });
 }
 
 // ---------- мини-карта ----------
@@ -1372,17 +1454,20 @@ function draw() {
     // в обзоре (диаграмма без своего модуля) связь между модулями видна только у выбранной таблицы:
     // 267 таких линий на общем виде сливались в клубок
     const crossHidden = diagram.module === null;
-    ctx.beginPath();                                  // связи, не относящиеся к выбранной таблице
-    for (const e of diagram.edges) {
-      if (crossHidden && e.cross) continue;
-      if (e.minX > x1 || e.maxX < x0 || e.minY > y1 || e.maxY < y0) continue;
-      if (active >= 0 && (e.a === active || e.b === active)) continue;
-      traceEdge(e);
-    }
-    ctx.strokeStyle = theme.muted;
-    ctx.lineWidth = px;
+    // уровень детализации зависит только от масштаба: смена текста на полоски во время жеста выглядела как мигание
+    const level = FONT.column * zoom >= TEXT_MIN_PX ? 3
+      : CARD.row * zoom >= BARS_MIN_ROW_PX ? 2
+      : W * zoom >= NAME_MIN_CARD_PX ? 1 : 0;
+    const quiet = view.quiet && level === 3;          // вблизи связи скрыты: видны только у столбца под курсором
+    faint.length = 0;                                 // связи, не относящиеся к выбранной таблице
+    if (!quiet) diagram.edges.forEach((e, index) => {
+      if (crossHidden && e.cross) return;
+      if (e.minX > x1 || e.maxX < x0 || e.minY > y1 || e.maxY < y0) return;
+      if (active >= 0 && (e.a === active || e.b === active)) return;
+      faint.push(index);
+    });
     ctx.globalAlpha = lit ? 0.12 : 0.45;
-    ctx.stroke();
+    strokeEdges(diagram, faint, px, traceEdge);
 
     visible.length = 0;                               // карточки в окне
     diagram.tables.forEach((t, i) => {
@@ -1391,26 +1476,19 @@ function draw() {
       t.sx = snap(t.x); t.sy = snap(t.y);             // прямоугольник карточки на сетке пикселей — на этот кадр
       t.sw = snap(t.x + W) - t.sx; t.sh = snap(t.y + t.h) - t.sy;
     });
-    // уровень детализации зависит только от масштаба: смена текста на полоски во время жеста выглядела как мигание
-    const level = FONT.column * zoom >= TEXT_MIN_PX ? 3
-      : CARD.row * zoom >= BARS_MIN_ROW_PX ? 2
-      : W * zoom >= NAME_MIN_CARD_PX ? 1 : 0;
     const chosen = active >= 0 ? diagram.tables[active] : null;
     if (lit) {
       dimmed.length = bright.length = 0;               // одна проходка делит видимые карточки на приглушённые и яркие
       for (const i of visible) (lit[i] ? bright : dimmed).push(i);
       drawCards(diagram, dimmed, DIM_ALPHA, level, y0, y1);
-      if (chosen) {                                   // связи выбранной таблицы — под ней и её соседями,
+      if (chosen && !quiet) {                         // связи выбранной таблицы — под ней и её соседями,
         ctx.globalAlpha = 1;                          // чтобы линия не шла по их тексту
-        ctx.strokeStyle = theme.accent;
-        ctx.lineWidth = 1.5 * px;
-        ctx.beginPath();
-        for (const index of chosen.edges) traceEdge(diagram.edges[index]);
-        ctx.stroke();
+        strokeEdges(diagram, chosen.edges, 1.5 * px, traceEdge);
       }
       drawCards(diagram, bright, 1, level, y0, y1);
       if (chosen) {
-        edgeEnds(diagram, chosen.edges, px);
+        // концы — только там, где читается столбец: на полосках они ни к чему не привязаны и забивают промежуток
+        if (level === 3 && !quiet) edgeEnds(diagram, chosen.edges, px);
         outline(chosen, 2, theme.accent);
       }
     } else {
@@ -1435,11 +1513,7 @@ function draw() {
       }
       if (list.length > 0) {
         ctx.globalAlpha = 1;
-        ctx.strokeStyle = theme.accent;
-        ctx.lineWidth = 1.5 * px;
-        ctx.beginPath();
-        for (const index of list) traceEdge(diagram.edges[index]);
-        ctx.stroke();
+        strokeEdges(diagram, list, 1.5 * px, traceEdge);
         edgeEnds(diagram, list, px);
       }
     }
@@ -1550,7 +1624,8 @@ function resize() {
   view.height = window.innerHeight;
   canvas.width = Math.round(view.width * view.dpr);
   canvas.height = Math.round(view.height * view.dpr);
-  topInset = toolbar.getBoundingClientRect().bottom + 12;   // ниже панели инструментов и ещё отступ
+  // ниже панели инструментов и ещё отступ; открытый поиск растит панель вниз списком — схема от этого не сдвигается
+  if (searchPanel.hidden) topInset = toolbar.getBoundingClientRect().bottom + 12;
   fitTop = topInset + LABEL_H + 4;                    // на общем виде над областями ещё строка их подписей
   minimapShown = !minimapPanel.hidden && minimap.clientWidth > 0;
   if (view.diagram && view.fitted) fit();            // пока вид не трогали, он остаётся «весь вид»
@@ -1733,17 +1808,57 @@ function buildStatusMenu() {                          // пункты — тол
   }));
 }
 
+// ---------- меню «Вид», как View в ChartDB и drawDB: переключатели с галочкой и своей клавишей ----------
+// Кнопка нажата, пока вид отличается от обычного.
+const viewButton = document.getElementById('view-button'), viewMenu = document.getElementById('view-menu');
+function syncViewButton() { viewButton.setAttribute('aria-pressed', String(view.mode === 'keys' || view.quiet)); }
+
 // столбцы: все или только ключи (первичный ключ и оба конца каждой связи) — у каждой диаграммы два вида
-const modeButton = document.getElementById('mode-button');
-modeButton.addEventListener('click', () => setMode(view.mode === 'keys' ? 'all' : 'keys'));
 function setMode(mode) {                              // та же диаграмма в другом виде; выбранная таблица остаётся
   if (mode === view.mode) return;
   const selectedId = view.selected >= 0 ? view.diagram.tables[view.selected].id : null;
   view.mode = mode;
-  modeButton.setAttribute('aria-pressed', String(mode === 'keys'));   // кнопка нажата, пока включён вид «только ключи»
+  syncViewButton();
   openDiagram(view.diagram.code);
   if (selectedId !== null) showTable(view.diagram.indexById.get(selectedId));
 }
+
+// вблизи (столбцы читаются) связи можно скрыть: тогда видны только связи столбца под курсором.
+// Выбор помнит этот браузер; без доступа к хранилищу — только до перезагрузки.
+const QUIET_KEY = 'schemap.quietLines';
+function setQuiet(on) {
+  view.quiet = on;
+  syncViewButton();
+  try { localStorage.setItem(QUIET_KEY, on ? '1' : ''); } catch (error) { console.warn('quiet lines: not remembered', error); }
+  requestDraw();
+}
+
+// [клавиша по месту, в любой раскладке; её буква; включено ли; переключить; подпись; подсказка]
+const VIEW_TOGGLES = [
+  ['KeyK', 'K', () => view.mode === 'keys', () => setMode(view.mode === 'keys' ? 'all' : 'keys'), 'modeKeys', 'modeKeysHint'],
+  ['KeyL', 'L', () => !view.quiet, () => setQuiet(!view.quiet), 'linesNear', 'linesNearHint'],
+];
+const CHECK_ICON = '<svg class="icon check" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>';
+function buildViewMenu() {
+  viewMenu.replaceChildren(...VIEW_TOGGLES.map(([, key, isOn, toggle, label, hint]) => {
+    const item = menuAction(TEXT[label], key, () => { closeMenu(); toggle(); });
+    const row = item.firstChild;
+    row.setAttribute('role', 'menuitemcheckbox');
+    row.setAttribute('aria-checked', String(isOn()));
+    row.setAttribute('aria-keyshortcuts', key);
+    row.title = TEXT[hint];
+    row.insertAdjacentHTML('afterbegin', CHECK_ICON);
+    return item;
+  }));
+}
+dropdown(viewButton, viewMenu, buildViewMenu);
+document.addEventListener('keydown', (event) => {
+  if (event.metaKey || event.ctrlKey || event.altKey || event.target instanceof HTMLInputElement) return;
+  const toggle = VIEW_TOGGLES.find(([code]) => code === event.code);
+  if (!toggle) return;
+  toggle[3]();
+  if (!viewMenu.hidden) buildViewMenu();
+});
 function make(tag, className, text) {                 // узел страницы с классом и текстом
   const node = document.createElement(tag);
   if (className) node.className = className;
@@ -2138,7 +2253,8 @@ function pick(index) {
 }
 const searchButton = document.getElementById('search-button');
 function focusSearch() { search.focus(); search.select(); }
-dropdown(searchButton, searchPanel, focusSearch);     // поиск всплывает под своей кнопкой, как меню
+dropdown(searchButton, searchPanel, focusSearch);     // поиск открывается и закрывается, как меню
+document.getElementById('search-close').addEventListener('click', closeMenu);
 search.addEventListener('input', () => {
   const query = search.value.trim().toLowerCase();
   if (query === '') { showResults([]); return; }
@@ -2204,6 +2320,9 @@ function start() {
     }
   }
   readTheme();
+  let quietRemembered = false;
+  try { quietRemembered = localStorage.getItem(QUIET_KEY) === '1'; } catch (error) { console.warn('quiet lines: storage closed', error); }
+  if (quietRemembered) setQuiet(true);
   buildMenu();
   buildExportMenu();
   resize();
