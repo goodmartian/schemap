@@ -1,0 +1,11 @@
+{
+  "name": "schemap",
+  "owner": { "name": "goodmartian" },
+  "plugins": [
+    {
+      "name": "schemap",
+      "source": "./",
+      "description": "Readable diagrams of large database schemas: one offline HTML file or a private claude.ai artifact link."
+    }
+  ]
+}

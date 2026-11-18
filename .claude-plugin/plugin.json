@@ -1,0 +1,9 @@
+{
+  "name": "schemap",
+  "version": "0.1.0",
+  "description": "Readable diagrams of large database schemas from SQL migrations, Postgres, Prisma, DBML or a spec: one offline HTML file or a private claude.ai artifact link.",
+  "author": { "name": "goodmartian" },
+  "repository": "https://github.com/goodmartian/schemap",
+  "license": "MIT",
+  "keywords": ["database", "erd", "schema", "diagram", "postgres", "prisma", "dbml", "migrations"]
+}

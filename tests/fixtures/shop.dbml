@@ -1,0 +1,105 @@
+// The same shop as shop.sql and shop.prisma.
+Project shop {
+  database_type: 'PostgreSQL'
+}
+
+TableGroup auth [note: 'Accounts'] {
+  auth.users
+  auth.sessions
+}
+
+TableGroup catalog [note: 'Catalog'] {
+  catalog.categories
+  catalog.products
+  catalog.product_images
+}
+
+TableGroup sales [note: 'Sales'] {
+  sales.orders
+  sales.order_items
+  sales.payments
+  sales.refunds
+}
+
+Table auth.users [note: 'People who can sign in'] {
+  id uuid [pk]
+  email varchar(320) [not null, unique, note: 'Sign-in address, unique']
+  full_name text
+  created_at timestamptz [not null, default: `now()`]
+}
+
+Table auth.sessions {
+  id uuid [pk]
+  user_id uuid [not null, ref: > auth.users.id]
+  expires_at timestamptz [not null]
+}
+
+Table catalog.categories {
+  id integer [pk]
+  parent_id integer [note: 'Empty for a top-level category']
+  name text [not null]
+}
+
+Table catalog.products {
+  id uuid [pk]
+  category_id integer [not null]
+  title text [not null]
+  price numeric(12,2) [not null]
+}
+
+Table catalog.product_images {
+  product_id uuid [not null]
+  position integer [not null]
+  url text [not null]
+
+  indexes {
+    (product_id, position) [pk]
+  }
+}
+
+Table sales.orders {
+  id uuid [pk]
+  buyer_id uuid [not null]
+  status text [not null, default: 'new']
+  created_at timestamptz [not null, default: `now()`]
+  Note: 'One checkout'
+}
+
+Table sales.order_items {
+  order_id uuid [not null]
+  product_id uuid [not null]
+  quantity integer [not null]
+  unit_price numeric(12,2) [not null]
+
+  indexes {
+    (order_id, product_id) [pk]
+  }
+}
+
+Table sales.payments {
+  id uuid [pk]
+  order_id uuid [not null]
+  amount numeric(12,2) [not null]
+  paid_at timestamptz
+}
+
+Table sales.refunds {
+  id uuid [pk]
+  order_id uuid [not null]
+  product_id uuid [not null]
+  note text
+  created_at timestamptz [not null, default: `now()`]
+}
+
+Ref: catalog.categories.parent_id > catalog.categories.id
+Ref products_category_fkey: catalog.products.category_id > catalog.categories.id
+Ref: catalog.product_images.product_id > catalog.products.id
+Ref: sales.orders.buyer_id > auth.users.id
+
+Ref {
+  sales.order_items.order_id > sales.orders.id
+  sales.order_items.product_id > catalog.products.id
+}
+
+Ref: sales.orders.id < sales.payments.order_id
+Ref: sales.refunds.(order_id, product_id) > sales.order_items.(order_id, product_id)
