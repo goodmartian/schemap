@@ -173,8 +173,10 @@
     /* открыта ли колонка — CSS читает с самой колонки (атрибут hidden), отдельного флага нет.
        У холста своя ширина в пикселях: «auto» её не растягивает, поэтому ширина задана явно. */
     body:has(#details:not([hidden])) #canvas { width: calc(100% - var(--details-width)); }
-    body:has(#details:not([hidden])) :is(#search-panel, #zoom-panel, #top-left) { right: calc(var(--details-width) + var(--space-3)); }
-    body:has(#details:not([hidden])) #top-left .panel { min-width: 0; }   /* меню не уходят под колонку, а режутся многоточием */
+    body:has(#details:not([hidden])) :is(#search-panel, #zoom-panel) { right: calc(var(--details-width) + var(--space-3)); }
+    /* ряд меню — по своему содержимому, но не шире схемы: меню не уходят под колонку, а режутся многоточием */
+    body:has(#details:not([hidden])) #top-left { max-width: calc(100% - var(--edge-left) - var(--details-width) - var(--space-3)); }
+    body:has(#details:not([hidden])) #top-left .panel { min-width: 0; }
   }
   /* поиск — вторым рядом во всю ширину схемы, когда в ряду с меню ему нет места: узкое окно, открытая колонка
      описания, длинное название диаграммы. Решает resize() по положению панелей, а не по ширине окна. */
@@ -728,35 +730,41 @@ function layoutSchema(raw) {
     `tables ${tables.length}, columns ${columnsTotal}, references ${refs.length}, modules ${codes.length}`);
   if (codes.length > 1) summary.push(`references inside modules ${inner}, between modules ${Math.floor(outer / 2)}`);
   summary.push('cards overlap: 0; every table inside its area; areas do not overlap');
-  return { data, summary };
+  return { data, summary, schema };   // schema: checked, with defaults — what the exports take
 }
 
-// ---------- export: the schema as DBML and as SQL for other tools; the importers read both back ----------
+// ---------- export: the checked schema (layoutSchema's `schema`) as DBML and as SQL; the importers read both back ----------
 // Both formats have no field for a table's title or status: the title goes into the table note, the status is left out.
 const tableNote = (t) => [t.title, t.note].filter(Boolean).join(' — ');
-// [schema, name] when the id is "schema.name", otherwise [name]
-function qualifiedName(t) {
+const keyColumns = (t) => t.columns.filter((c) => c.pk);
+// "schema.name" when the id is that, otherwise the bare name; each part quoted the format's way
+function tableRef(t, quote) {
   const dot = t.id.lastIndexOf('.');
-  return dot > 0 && t.id.slice(dot + 1) === t.name ? [t.id.slice(0, dot), t.name] : [t.name];
+  return (dot > 0 && t.id.slice(dot + 1) === t.name ? [t.id.slice(0, dot), t.name] : [t.name]).map(quote).join('.');
 }
 
-const dbmlName = (name) => (/^[A-Za-z_][A-Za-z0-9_]*$/.test(name) ? name : `"${name.replaceAll('"', '')}"`);
-const dbmlType = (type) => (/^[A-Za-z_][A-Za-z0-9_]*(\([^)"]*\))?(\[\])*$/.test(type) ? type : `"${type.replaceAll('"', '')}"`);
+// DBML has no way to write a double quote inside a quoted name: such a name stops the export with its own words
+const dbmlQuoted = (plain) => (text) => {
+  if (plain.test(text)) return text;
+  if (text.includes('"')) throw new Error(`DBML cannot hold the name ${text}: it contains a double quote`);
+  return `"${text}"`;
+};
+const dbmlName = dbmlQuoted(/^[A-Za-z_][A-Za-z0-9_]*$/);
+const dbmlType = dbmlQuoted(/^[A-Za-z_][A-Za-z0-9_]*(\([^)"]*\))?(\[\])*$/);
 const dbmlString = (text) => (text.includes('\n') ? `'''${text.replaceAll("'''", "'' '")}'''`
   : `'${text.replaceAll('\\', '\\\\').replaceAll("'", "\\'")}'`);
 
-function schemaToDbml(raw) {
-  const schema = checkSchema(raw);
+function schemaToDbml(schema) {
   const byId = new Map(schema.tables.map((t) => [t.id, t]));
-  const tableRef = (t) => qualifiedName(t).map(dbmlName).join('.');
   const end = (e) => {
     const columns = e.columns.map(dbmlName);
-    return `${tableRef(byId.get(e.table))}.${columns.length === 1 ? columns[0] : `(${columns.join(', ')})`}`;
+    return `${tableRef(byId.get(e.table), dbmlName)}.${columns.length === 1 ? columns[0] : `(${columns.join(', ')})`}`;
   };
-  const out = [];
+  const out = [], members = new Map(schema.modules.map((m) => [m.code, []]));
   for (const t of schema.tables) {
-    const keys = t.columns.filter((c) => c.pk), note = tableNote(t);
-    out.push(`Table ${tableRef(t)}${note ? ` [note: ${dbmlString(note)}]` : ''} {`);
+    const keys = keyColumns(t), note = tableNote(t);
+    members.get(t.module).push(`  ${tableRef(t, dbmlName)}`);
+    out.push(`Table ${tableRef(t, dbmlName)}${note ? ` [note: ${dbmlString(note)}]` : ''} {`);
     for (const c of t.columns) {
       const single = c.pk && keys.length === 1;   // a one-column key sits on the column, a composite one in indexes
       const settings = [single && 'pk', !c.nullable && !single && 'not null', c.note && `note: ${dbmlString(c.note)}`].filter(Boolean);
@@ -766,10 +774,7 @@ function schemaToDbml(raw) {
     out.push('}', '');
   }
   for (const r of schema.refs) out.push(`Ref: ${end(r.from)} > ${end(r.to)}`);
-  for (const m of schema.modules) {
-    out.push('', `TableGroup ${dbmlName(m.code)} [note: ${dbmlString(m.name)}] {`,
-      ...schema.tables.filter((t) => t.module === m.code).map((t) => `  ${tableRef(t)}`), '}');
-  }
+  for (const m of schema.modules) out.push('', `TableGroup ${dbmlName(m.code)} [note: ${dbmlString(m.name)}] {`, ...members.get(m.code), '}');
   return out.join('\n') + '\n';
 }
 
@@ -789,37 +794,36 @@ const POSTGRES_TYPES = new Set(('smallint integer int int2 int4 int8 bigint seri
   + 'jsonb xml inet cidr macaddr macaddr8 point line lseg box path polygon circle tsvector tsquery bit varbit '
   + 'int4range int8range numrange tsrange tstzrange daterange int4multirange int8multirange nummultirange '
   + 'tsmultirange tstzmultirange datemultirange oid name').split(' '));
-const isPostgresType = (type) => type.replace(/\(.*?\)|\[\]/g, ' ').trim().split(/\s+/).every((word) => POSTGRES_TYPES.has(word));
+const isPostgresType = (type) => type.toLowerCase().replace(/\(.*?\)|\[\]/g, ' ').trim().split(/\s+/).every((word) => POSTGRES_TYPES.has(word));
 
-function schemaToSql(raw) {
-  const schema = checkSchema(raw);
+function schemaToSql(schema) {
   const byId = new Map(schema.tables.map((t) => [t.id, t]));
-  const tableRef = (t) => qualifiedName(t).map(sqlName).join('.');
+  const ref = (id) => tableRef(byId.get(id), sqlName);
+  const columnList = (columns) => columns.map(sqlName).join(', ');
   const out = [];
-  const ownTypes = [...new Set(schema.tables.flatMap((t) => t.columns.map((c) => c.type)).filter((type) => !isPostgresType(type.toLowerCase())))];
-  if (ownTypes.length) out.push(`-- Types the schema uses but does not define (enums, domains); create them first: ${ownTypes.sort().join(', ')}`, '');
-  const schemas = [...new Set(schema.tables.map(qualifiedName).filter((q) => q.length === 2).map((q) => q[0]))];
+  const ownTypes = [...new Set(schema.tables.flatMap((t) => t.columns.map((c) => c.type)))].filter((type) => !isPostgresType(type));
+  if (ownTypes.length) out.push(`-- Types not built into Postgres (enums, domains, extension types); they must exist before this script runs: ${ownTypes.sort().join(', ')}`, '');
+  const schemas = new Set(schema.tables.map((t) => tableRef(t, (part) => part)).filter((name) => name.includes('.')).map((name) => name.slice(0, name.lastIndexOf('.'))));
   for (const s of schemas) out.push(`CREATE SCHEMA IF NOT EXISTS ${sqlName(s)};`);
   for (const t of schema.tables) {
-    const keys = t.columns.filter((c) => c.pk).map((c) => sqlName(c.name));
+    const keys = keyColumns(t).map((c) => c.name);
     const lines = t.columns.map((c) => `  ${sqlName(c.name)} ${c.type}${c.nullable ? '' : ' NOT NULL'}`);
-    if (keys.length) lines.push(`  PRIMARY KEY (${keys.join(', ')})`);
-    out.push('', `CREATE TABLE ${tableRef(t)} (`, lines.join(',\n'), ');');
-    if (tableNote(t)) out.push(`COMMENT ON TABLE ${tableRef(t)} IS ${sqlString(tableNote(t))};`);
-    for (const c of t.columns) if (c.note) out.push(`COMMENT ON COLUMN ${tableRef(t)}.${sqlName(c.name)} IS ${sqlString(c.note)};`);
+    if (keys.length) lines.push(`  PRIMARY KEY (${columnList(keys)})`);
+    out.push('', `CREATE TABLE ${ref(t.id)} (`, lines.join(',\n'), ');');
+    if (tableNote(t)) out.push(`COMMENT ON TABLE ${ref(t.id)} IS ${sqlString(tableNote(t))};`);
+    for (const c of t.columns) if (c.note) out.push(`COMMENT ON COLUMN ${ref(t.id)}.${sqlName(c.name)} IS ${sqlString(c.note)};`);
   }
   if (schema.refs.length) out.push('');
   // a reference proves its target unique; one that is not the primary key needs that said for Postgres to accept it
-  const targets = new Set();
+  const unique = new Set();
   for (const r of schema.refs) {
-    const target = byId.get(r.to.table), keys = target.columns.filter((c) => c.pk).map((c) => c.name);
-    const sameAsKey = keys.length === r.to.columns.length && keys.every((k) => r.to.columns.includes(k));
-    const line = `ALTER TABLE ${tableRef(target)} ADD UNIQUE (${r.to.columns.map(sqlName).join(', ')});`;
-    if (!sameAsKey && !targets.has(line)) { targets.add(line); out.push(line); }
+    const keys = keyColumns(byId.get(r.to.table)).map((c) => c.name);
+    const isKey = keys.length === r.to.columns.length && keys.every((k) => r.to.columns.includes(k));
+    if (!isKey) unique.add(`ALTER TABLE ${ref(r.to.table)} ADD UNIQUE (${columnList(r.to.columns)});`);
   }
+  out.push(...unique);
   for (const r of schema.refs) {
-    out.push(`ALTER TABLE ${tableRef(byId.get(r.from.table))} ADD FOREIGN KEY (${r.from.columns.map(sqlName).join(', ')}) `
-      + `REFERENCES ${tableRef(byId.get(r.to.table))} (${r.to.columns.map(sqlName).join(', ')});`);
+    out.push(`ALTER TABLE ${ref(r.from.table)} ADD FOREIGN KEY (${columnList(r.from.columns)}) REFERENCES ${ref(r.to.table)} (${columnList(r.to.columns)});`);
   }
   return out.join('\n') + '\n';
 }
@@ -843,7 +847,7 @@ const STRINGS = {
     columns: 'Columns', incoming: 'Referenced by', notFound: 'Not found', required: 'required',
     allTables: 'All tables', failure: 'The diagram did not open.',
     modeMenu: 'Columns shown', modeAll: 'All columns', modeKeys: 'Keys only', minimap: 'Diagram map',
-    exportMenu: 'Export schema', copyDbml: 'Copy DBML', copySql: 'Copy SQL', saveDbml: 'Download DBML', saveSql: 'Download SQL',
+    exportMenu: 'Export schema', copy: { dbml: 'Copy DBML', sql: 'Copy SQL' }, save: { dbml: 'Download DBML', sql: 'Download SQL' },
     exportCopied: 'Copied', copyFailed: 'Not copied', exportSaved: 'Saved', saveFailed: 'Not saved',
     statusLabel: { new: 'new', changed: 'changes', same: '' },                  // mark in the card header
     statusName: { new: 'new', changed: 'changes', same: 'unchanged' },          // status in the details panel
@@ -856,7 +860,7 @@ const STRINGS = {
     columns: 'Столбцы', incoming: 'Ссылаются сюда', notFound: 'Не найдено', required: 'обязательный',
     allTables: 'Все таблицы', failure: 'Схема не открылась.',
     modeMenu: 'Какие столбцы показать', modeAll: 'Все столбцы', modeKeys: 'Только ключи', minimap: 'Карта схемы',
-    exportMenu: 'Выгрузка схемы', copyDbml: 'Скопировать DBML', copySql: 'Скопировать SQL', saveDbml: 'Скачать DBML', saveSql: 'Скачать SQL',
+    exportMenu: 'Выгрузка схемы', copy: { dbml: 'Скопировать DBML', sql: 'Скопировать SQL' }, save: { dbml: 'Скачать DBML', sql: 'Скачать SQL' },
     exportCopied: 'Скопировано', copyFailed: 'Не скопировано', exportSaved: 'Сохранено', saveFailed: 'Не сохранено',
     statusLabel: { new: 'новая', changed: 'меняется', same: '' },
     statusName: { new: 'новая', changed: 'меняется', same: 'без изменений' },
@@ -908,7 +912,7 @@ const ctx = canvas.getContext('2d', { alpha: false });
 const topLeft = document.getElementById('top-left'), searchPanel = document.getElementById('search-panel');
 const view = { diagram: null, zoom: 1, tx: 0, ty: 0, width: 0, height: 0, dpr: 1, hover: -1, selected: -1,
   hoverRow: null, status: null, mode: 'all', fitZoom: 1, fitted: true, moving: false };
-let SOURCE, DATA, CARD, MODULES, DIAGRAMS, DIAGRAMS_BY_SLUG, TABLES, HAS_STATUS, theme;   // SOURCE — схема как в файле, для выгрузки
+let SOURCE, DATA, CARD, MODULES, DIAGRAMS, DIAGRAMS_BY_SLUG, TABLES, HAS_STATUS, theme;   // SOURCE — проверенная схема, для выгрузки
 
 // ---------- тема ----------
 function readTheme() {
@@ -1441,6 +1445,9 @@ function draw() {
     const inset = inside ? Math.min(12, (CARD.areaTop * zoom - LABEL_H) / 2) : 0;
     // текст подписи — на одной линии с левым краем карточек, как заголовок колонки
     const insetX = inside ? Math.max(0, CARD.areaPad * zoom - LABEL_PAD) : 0;
+    const coversOther = (area, x, y, w) => diagram.areas.some((other) => other !== area   // подпись x, y, w — на чужой области?
+      && x < (other.x + other.w) * zoom + tx && x + w > other.x * zoom + tx
+      && y < (other.y + other.h) * zoom + ty && y + LABEL_H > other.y * zoom + ty);
     for (const area of diagram.areas) {
       const left = area.x * zoom + tx, right = (area.x + area.w) * zoom + tx;
       const top = area.y * zoom + ty, bottom = (area.y + area.h) * zoom + ty;
@@ -1458,13 +1465,13 @@ function draw() {
       const x = Math.round(Math.max(left + insetX, Math.min(12, right - labelW)));
       const home = inside ? top + inset : top - LABEL_H - 4;
       let y = Math.round(Math.min(Math.max(home, topInset), Math.max(home, bottom - LABEL_H - inset)));
-      const overOther = (at) => diagram.areas.some((other) => other !== area
-        && x < (other.x + other.w) * zoom + tx && x + labelW > other.x * zoom + tx
-        && at < (other.y + other.h) * zoom + ty && at + LABEL_H > other.y * zoom + ty);
+      let clash = false;
       // подпись не закрывает чужую область: при мелком масштабе промежуток между рядами ниже подписи —
       // тогда она ложится в свою область, у верхнего края
-      if (overOther(y)) y = Math.round(Math.max(top + 4, Math.min(topInset, bottom - LABEL_H - 4)));
-      let clash = overOther(y) || y + LABEL_H > bottom;
+      if (coversOther(area, x, y, labelW)) {
+        y = Math.round(Math.max(top + 4, Math.min(topInset, bottom - LABEL_H - 4)));
+        clash = coversOther(area, x, y, labelW) || y + LABEL_H > bottom;
+      }
       // две подписи не пересекаются: вторая тогда не рисуется
       for (let n = 0; n < placed.length; n += 3) {
         if (x < placed[n] + placed[n + 2] && x + labelW > placed[n] && Math.abs(y - placed[n + 1]) < LABEL_H) clash = true;
@@ -1531,9 +1538,7 @@ function resize() {
   canvas.height = Math.round(view.height * view.dpr);
   // поиск сначала в ряду с меню; наезжает на них — уходит вторым рядом
   document.body.classList.remove('search-below');
-  // край — у последнего видимого меню: сам ряд при открытой колонке растянут до её края
-  const menusRight = Math.max(...[...topLeft.children].filter((panel) => !panel.hidden).map((panel) => panel.getBoundingClientRect().right));
-  document.body.classList.toggle('search-below', searchPanel.getBoundingClientRect().left < menusRight + 8);
+  document.body.classList.toggle('search-below', searchPanel.getBoundingClientRect().left < topLeft.getBoundingClientRect().right + 8);
   // ниже всех панелей сверху и ещё отступ
   topInset = Math.max(topLeft.getBoundingClientRect().bottom, searchPanel.getBoundingClientRect().bottom) + 12;
   fitTop = topInset + LABEL_H + 4;                    // на общем виде над областями ещё строка их подписей
@@ -1659,23 +1664,57 @@ copyButton.addEventListener('click', () => {
 
 // ---------- меню выбора: статус таблиц и какие столбцы показать ----------
 // Одна форма для обоих: панель с кнопкой (текущий выбор) и список вариантов, у варианта может быть число.
+// ---------- меню ----------
+// Выпадающее меню — кнопка и список под ней. dropdown() его регистрирует: открыть одно — значит закрыть остальные.
+const MENUS = [];
+function setMenuOpen(button, list, open) {
+  list.hidden = !open;
+  button.setAttribute('aria-expanded', String(open));
+}
+function dropdown(button, list) {
+  MENUS.push([button, list]);
+  button.addEventListener('click', () => {
+    const open = list.hidden;
+    closeMenu();
+    setMenuOpen(button, list, open);
+  });
+}
+function closeMenu() {
+  for (const [button, list] of MENUS) setMenuOpen(button, list, false);
+}
+// Строка списка: название и, если нужно, серая подсказка справа — число или название модуля.
+function listRow(element, label, secondary = null) {
+  element.className = 'control';
+  element.append(make('span', 'label', label));
+  if (secondary !== null) element.append(make('span', 'secondary', String(secondary)));
+  return element;
+}
+function listItem(node) {
+  const item = make('li');
+  item.append(node);
+  return item;
+}
+function menuAction(label, secondary, onClick) {       // пункт-кнопка в списке меню
+  const row = listRow(make('button'), label, secondary);
+  row.type = 'button';
+  row.addEventListener('click', onClick);
+  return listItem(row);
+}
+
 function picker(name, onPick) {
   const panel = document.getElementById(`${name}-panel`);
   const button = document.getElementById(`${name}-button`);
   const list = document.getElementById(`${name}-menu`);
-  button.addEventListener('click', () => toggleMenu(button, list));
+  dropdown(button, list);
   return {
-    close() { setMenuOpen(button, list, false); },
     // choices: [{ value, label, count }] (count — число или null); visible — показывать ли панель вообще
     show(choices, current, visible) {
       panel.hidden = !visible;
       document.getElementById(`${name}-label`).textContent = choices.find((c) => c.value === current).label;
       list.replaceChildren(...choices.map(({ value, label, count }) => {
-        const row = listRow(make('button'), label, count);
-        row.type = 'button';
-        if (value === current) row.setAttribute('aria-current', 'true');
-        row.addEventListener('click', () => { closeMenu(); onPick(value); });
-        return listItem(row);
+        const item = menuAction(label, count, () => { closeMenu(); onPick(value); });
+        if (value === current) item.firstChild.setAttribute('aria-current', 'true');
+        return item;
       }));
     },
   };
@@ -1886,7 +1925,7 @@ document.getElementById('zoom-fit').addEventListener('click', fit);
 // и только с расширением из его списка: .dbml и .sql там сохраняются как .dbml.txt и .sql.txt.
 const exportButton = document.getElementById('export-button');
 const exportMenu = document.getElementById('export-menu');
-exportButton.addEventListener('click', () => toggleMenu(exportButton, exportMenu));
+dropdown(exportButton, exportMenu);
 let saveFile = null;                                  // (имя, текст) → Promise; null — скачать нельзя
 if (window.self === window.top) {                     // своя страница: обычная загрузка браузера
   saveFile = (name, text) => {
@@ -1894,7 +1933,7 @@ if (window.self === window.top) {                     // своя страниц
     link.href = URL.createObjectURL(new Blob([text], { type: 'text/plain' }));
     link.download = name;
     link.click();
-    setTimeout(() => URL.revokeObjectURL(link.href), 0);
+    setTimeout(() => URL.revokeObjectURL(link.href), 1000);   // сразу — Safari не успевает начать загрузку
     return Promise.resolve();
   };
 } else if (window.claude && window.claude.use) {      // артефакт: файл отдаёт claude.ai, человек подтверждает
@@ -1904,30 +1943,21 @@ if (window.self === window.top) {                     // своя страниц
     if (SOURCE) buildExportMenu();                   // схема уже прочитана — меню пересобирается
   });
 }
+const EXPORTS = [['dbml', schemaToDbml], ['sql', schemaToSql]];
 function buildExportMenu() {
   const fileName = (SOURCE.title || 'schema').replace(/[^\p{L}\p{N}_-]+/gu, '-');
-  const rows = [];
-  if (navigator.clipboard) {
-    rows.push([TEXT.copyDbml, () => navigator.clipboard.writeText(schemaToDbml(SOURCE)), TEXT.exportCopied, TEXT.copyFailed]);
-    rows.push([TEXT.copySql, () => navigator.clipboard.writeText(schemaToSql(SOURCE)), TEXT.exportCopied, TEXT.copyFailed]);
-  }
-  if (saveFile) {
-    rows.push([TEXT.saveDbml, () => saveFile(`${fileName}.dbml`, schemaToDbml(SOURCE)), TEXT.exportSaved, TEXT.saveFailed]);
-    rows.push([TEXT.saveSql, () => saveFile(`${fileName}.sql`, schemaToSql(SOURCE)), TEXT.exportSaved, TEXT.saveFailed]);
-  }
-  document.getElementById('export-panel').hidden = rows.length === 0;
-  exportMenu.replaceChildren(...rows.map(([label, run, done, failed]) => {
-    const row = listRow(make('button'), label);
-    row.type = 'button';
-    row.addEventListener('click', () => runExport(row, run, done, failed));
-    return listItem(row);
-  }));
+  const copies = navigator.clipboard ? EXPORTS.map(([format, write]) => menuAction(TEXT.copy[format], null, (event) =>
+    runExport(event.currentTarget, () => navigator.clipboard.writeText(write(SOURCE)), TEXT.exportCopied, TEXT.copyFailed))) : [];
+  const saves = saveFile ? EXPORTS.map(([format, write]) => menuAction(TEXT.save[format], null, (event) =>
+    runExport(event.currentTarget, () => saveFile(`${fileName}.${format}`, write(SOURCE)), TEXT.exportSaved, TEXT.saveFailed))) : [];
+  document.getElementById('export-panel').hidden = copies.length + saves.length === 0;
+  exportMenu.replaceChildren(...copies, ...saves);
 }
 function runExport(row, run, done, failed) {          // итог — серым справа в той же строке, потом меню закрывается
   const report = (text) => {
-    row.querySelector('.secondary')?.remove();
-    row.append(make('span', 'secondary', text));
-    setTimeout(() => { row.querySelector('.secondary')?.remove(); closeMenu(); }, 1200);
+    const note = make('span', 'secondary', text);
+    row.append(note);
+    setTimeout(() => { note.remove(); closeMenu(); }, 1200);
   };
   run().then(() => report(done), (error) => {
     if (error && error.code === 'declined') { closeMenu(); return; }   // человек сам отказался сохранять
@@ -1939,34 +1969,7 @@ function runExport(row, run, done, failed) {          // итог — серым
 // ---------- выбор диаграммы ----------
 const menuButton = document.getElementById('menu-button');
 const menu = document.getElementById('menu');
-function setMenuOpen(button, list, open) {
-  list.hidden = !open;
-  button.setAttribute('aria-expanded', String(open));
-}
-function toggleMenu(button, list) {                   // открыть одно меню — значит закрыть остальные
-  const open = list.hidden;
-  closeMenu();
-  setMenuOpen(button, list, open);
-}
-function closeMenu() {                                // закрывает все меню: диаграмм, статусов, столбцов, выгрузки
-  setMenuOpen(menuButton, menu, false);
-  statusPicker.close();
-  modePicker.close();
-  setMenuOpen(exportButton, exportMenu, false);
-}
-menuButton.addEventListener('click', () => toggleMenu(menuButton, menu));
-// Строка списка: название и, если нужно, серая подсказка справа — число или название модуля.
-function listRow(element, label, secondary = null) {
-  element.className = 'control';
-  element.append(make('span', 'label', label));
-  if (secondary !== null) element.append(make('span', 'secondary', String(secondary)));
-  return element;
-}
-function listItem(node) {
-  const item = make('li');
-  item.append(node);
-  return item;
-}
+dropdown(menuButton, menu);
 // модуль называется словом, а не цветом, и только там, где он отличается от модуля вокруг (context)
 const moduleHint = (module, context) => (module !== context ? MODULES.get(module).name : null);
 function buildMenu() {
@@ -2080,8 +2083,7 @@ function start() {
     const tags = navigator.languages && navigator.languages.length ? navigator.languages : [navigator.language || ''];
     raw.lang = tags.map((tag) => tag.toLowerCase().split('-')[0]).find((code) => SCHEMA_LANGS.includes(code)) || 'en';
   }
-  SOURCE = raw;
-  DATA = layoutSchema(raw).data;
+  ({ data: DATA, schema: SOURCE } = layoutSchema(raw));
   applyStrings(DATA.lang);
   CARD = DATA.card;
   MODULES = new Map(DATA.modules.map((m) => [m.code, m]));

@@ -51,7 +51,7 @@ To update a diagram later, change the source or `schema.json` and rebuild. Repub
 The page's export menu copies or downloads the schema as DBML or SQL. From the command line: `node "<skill-dir>/check.mjs" schema.json --dbml schema.dbml --sql schema.sql`.
 
 - **DBML** opens in dbdiagram.io, ChartDB, drawDB and DrawSQL. Modules become `TableGroup`s.
-- **SQL** is a Postgres `CREATE TABLE` script with `COMMENT ON` for notes; draw.io reads it through Arrange → Insert → From SQL. Its first line lists the types the schema uses but does not define (enums, domains): they must exist before the script runs. A reference to columns other than the primary key gets a `UNIQUE` on them.
+- **SQL** is a Postgres `CREATE TABLE` script with `COMMENT ON` for notes; draw.io reads it through Arrange → Insert → From SQL. Its first line lists the types not built into Postgres (enums, domains, extension types): they must exist before the script runs. A reference to columns other than the primary key gets a `UNIQUE` on them.
 - Neither format has a field for a table's title or status: the title goes into the table note, the status is left out.
 - Both read back through `import-dbml.mjs` and `import-sql.mjs` with the same tables, columns, notes and references.
 - In a claude.ai artifact a downloaded file is named `….dbml.txt` or `….sql.txt`: artifacts save only some file types.

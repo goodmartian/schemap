@@ -34,11 +34,17 @@ function shape(schema) {
 
 const tmp = mkdtempSync(join(tmpdir(), 'schemap-checks-'));
 const failures = [], shapes = {};
+function importTo(kind, source, out) {                // runs an importer and returns what it wrote
+  run(join(SKILL, 'importers', `import-${kind}.mjs`), source, '-o', out, '--title', 'Shop');
+  return JSON.parse(readFileSync(out, 'utf8'));
+}
+function sameAsSql(what, value) {                     // the SQL fixture's reading is the reference
+  for (const part of Object.keys(value)) if (value[part] !== shapes.sql[part]) failures.push(`${what} differs from sql in ${part}`);
+}
 try {
   for (const [kind, fixture] of Object.entries(IMPORTERS)) {
     const out = join(tmp, `${kind}.json`);
-    run(join(SKILL, 'importers', `import-${kind}.mjs`), join(FIXTURES, fixture), '-o', out, '--title', 'Shop');
-    const schema = JSON.parse(readFileSync(out, 'utf8'));
+    const schema = importTo(kind, join(FIXTURES, fixture), out);
     const got = { tables: schema.tables.length, columns: schema.tables.reduce((sum, t) => sum + t.columns.length, 0),
       refs: schema.refs.length, modules: schema.modules.length };
     if (JSON.stringify(got) !== JSON.stringify(EXPECT)) failures.push(`${kind}: ${JSON.stringify(got)}, expected ${JSON.stringify(EXPECT)}`);
@@ -46,22 +52,10 @@ try {
     run(join(SKILL, 'check.mjs'), out, '-o', join(tmp, `${kind}.html`));
     run(join(SKILL, 'check.mjs'), out, '-o', join(tmp, `${kind}.artifact.html`), '--artifact');
   }
-  for (const [kind, value] of Object.entries(shapes)) {
-    for (const part of Object.keys(value)) {
-      if (value[part] !== shapes.sql[part]) failures.push(`${kind} differs from sql in ${part}`);
-    }
-  }
+  for (const [kind, value] of Object.entries(shapes)) sameAsSql(kind, value);
   // export and back: the shop written as DBML and as SQL reads back with the same tables, columns and references
-  const shop = join(tmp, 'sql.json');
-  run(join(SKILL, 'check.mjs'), shop, '--dbml', join(tmp, 'shop.dbml'), '--sql', join(tmp, 'shop.sql'));
-  for (const kind of ['dbml', 'sql']) {
-    const back = join(tmp, `back-${kind}.json`);
-    run(join(SKILL, 'importers', `import-${kind}.mjs`), join(tmp, `shop.${kind}`), '-o', back);
-    const value = shape(JSON.parse(readFileSync(back, 'utf8')));
-    for (const part of Object.keys(value)) {
-      if (value[part] !== shapes.sql[part]) failures.push(`export to ${kind} and back differs in ${part}`);
-    }
-  }
+  run(join(SKILL, 'check.mjs'), join(tmp, 'sql.json'), '--dbml', join(tmp, 'shop.dbml'), '--sql', join(tmp, 'shop.sql'));
+  for (const kind of ['dbml', 'sql']) sameAsSql(`export to ${kind} and back`, shape(importTo(kind, join(tmp, `shop.${kind}`), join(tmp, `back-${kind}.json`))));
 } finally {
   rmSync(tmp, { recursive: true, force: true });
 }

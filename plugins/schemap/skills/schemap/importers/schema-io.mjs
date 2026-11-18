@@ -17,23 +17,35 @@ export function fail(message) {
 // ---------- text ----------
 
 /**
- * Splits on sep outside brackets and quotes. brackets: pairs of open/close characters, e.g. '()[]{}'.
- * escapes: a backslash inside quotes keeps the next character (DBML's \'); SQL doubles quotes instead.
+ * Where the quoted text that opens at text[start] ends: the index after its closing quote, or text.length.
+ * dbml: DBML's strings — '''…''' spans lines and a backslash keeps the next character (\'). Otherwise SQL's:
+ * a doubled quote reads as two strings in a row, which ends in the same place.
  */
-export function splitTop(text, separator = ',', brackets = '()', escapes = false) {
+export function quotedEnd(text, start, dbml = false) {
+  if (dbml && text.startsWith("'''", start)) {
+    const close = text.indexOf("'''", start + 3);
+    return close < 0 ? text.length : close + 3;
+  }
+  const quote = text[start];
+  let i = start + 1;
+  while (i < text.length && text[i] !== quote) i += dbml && text[i] === '\\' ? 2 : 1;
+  return Math.min(i + 1, text.length);
+}
+
+/** Splits on sep outside brackets and quotes. brackets: pairs of open/close characters, e.g. '()[]{}'. */
+export function splitTop(text, separator = ',', brackets = '()', dbml = false) {
   const opens = [...brackets].filter((_, i) => i % 2 === 0), closes = [...brackets].filter((_, i) => i % 2 === 1);
   const parts = [];
-  let depth = 0, buf = '', quote = null, escaped = false;
-  for (const ch of text) {
-    if (quote) {
-      buf += ch;
-      if (escaped) escaped = false;
-      else if (escapes && ch === '\\') escaped = true;
-      else if (ch === quote) quote = null;
+  let depth = 0, buf = '';
+  for (let i = 0; i < text.length; i += 1) {
+    const ch = text[i];
+    if (QUOTES.includes(ch)) {
+      const end = quotedEnd(text, i, dbml);
+      buf += text.slice(i, end);
+      i = end - 1;
       continue;
     }
-    if (QUOTES.includes(ch)) quote = ch;
-    else if (opens.includes(ch)) depth += 1;
+    if (opens.includes(ch)) depth += 1;
     else if (closes.includes(ch)) depth -= 1;
     else if (ch === separator && depth === 0) {
       parts.push(buf.trim());

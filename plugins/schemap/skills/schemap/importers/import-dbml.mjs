@@ -7,7 +7,7 @@
 // Tables in no group go to a module named after their schema ("public" when there is none).
 // Enum, Project, Note, Records and TablePartial blocks are skipped; many-to-many refs (<>) are reported, not drawn.
 import {
-  QUOTES, addRef, collectFiles, parseArgs, readFiles, report, splitLines, splitTop, tableId, unquote, writeSchema,
+  QUOTES, addRef, collectFiles, parseArgs, quotedEnd, readFiles, report, splitLines, splitTop, tableId, unquote, writeSchema,
 } from './schema-io.mjs';
 
 const BRACKETS = '()[]{}';
@@ -19,16 +19,8 @@ function stripComments(text) {
   let out = '', i = 0;
   const n = text.length;
   while (i < n) {
-    if (text.startsWith("'''", i)) {   // multi-line string
-      const close = text.indexOf("'''", i + 3), end = close < 0 ? n : close + 3;
-      out += text.slice(i, end); i = end; continue;
-    }
     const ch = text[i];
-    if (QUOTES.includes(ch)) {
-      let end = i + 1;
-      while (end < n && text[end] !== ch) end += text[end] === '\\' ? 2 : 1;
-      out += text.slice(i, end + 1); i = end + 1; continue;
-    }
+    if (QUOTES.includes(ch)) { const end = quotedEnd(text, i, true); out += text.slice(i, end); i = end; continue; }
     if (text.startsWith('//', i)) { i = text.indexOf('\n', i); if (i < 0) i = n; continue; }
     if (text.startsWith('/*', i)) { const end = text.indexOf('*/', i + 2); i = end < 0 ? n : end + 2; continue; }
     out += ch; i += 1;
@@ -55,18 +47,11 @@ function* blocks(text) {
       continue;
     }
     if (brace < 0) break;
-    let depth = 0, j = brace, quote = null;
+    let depth = 0, j = brace;
     while (j < n) {
       const ch = text[j];
-      if (quote) {
-        if (text.startsWith("'''", j) && quote === "'''") { quote = null; j += 3; continue; }
-        if (quote !== "'''" && ch === '\\') { j += 2; continue; }   // \' inside a string does not close it
-        if (quote !== "'''" && ch === quote) quote = null;
-        j += 1; continue;
-      }
-      if (text.startsWith("'''", j)) { quote = "'''"; j += 3; continue; }
-      if (QUOTES.includes(ch)) quote = ch;
-      else if (ch === '{') depth += 1;
+      if (QUOTES.includes(ch)) { j = quotedEnd(text, j, true); continue; }
+      if (ch === '{') depth += 1;
       else if (ch === '}') { depth -= 1; if (depth === 0) break; }
       j += 1;
     }

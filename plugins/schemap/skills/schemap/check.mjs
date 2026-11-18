@@ -29,10 +29,9 @@ const context = vm.createContext({});
 vm.runInContext(core[1], context, { filename: 'viewer.html#schemap-core' });
 
 const text = readFileSync(args.schemaFile, 'utf8');
-const raw = JSON.parse(text);
-let summary;
+let summary, schema;
 try {
-  ({ summary } = context.layoutSchema(raw));
+  ({ summary, schema } = context.layoutSchema(JSON.parse(text)));
 } catch (error) {
   console.error(`${args.schemaFile}: ${error.message}`);
   process.exit(1);
@@ -49,5 +48,5 @@ if (args.out) {
   const schema = text.trim().replace(/<\//g, '<\\/');
   write(args.out, `${args.artifact ? '' : '<!doctype html>\n'}${viewer.trimEnd()}\n<script id="schema" type="application/json">${schema}</script>\n`);
 }
-if (args.dbml) write(args.dbml, context.schemaToDbml(raw));
-if (args.sql) write(args.sql, context.schemaToSql(raw));
+if (args.dbml) write(args.dbml, context.schemaToDbml(schema));
+if (args.sql) write(args.sql, context.schemaToSql(schema));
