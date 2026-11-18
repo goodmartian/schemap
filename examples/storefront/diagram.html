@@ -292,7 +292,6 @@
 <aside id="details" class="panel" data-label="details" hidden>
   <div id="details-top">
     <h2 id="details-name"></h2>
-    <button id="details-comment" class="control square" type="button" data-label="comment" data-title="comment" hidden><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M22 17a2 2 0 0 1-2 2H6.828a2 2 0 0 0-1.414.586l-2.202 2.202A.71.71 0 0 1 2 21.286V5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2z"/></svg></button>
     <button id="details-copy" class="control square" type="button" data-label="copyLink" data-title="copyLink"><svg id="copy-link" class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg><svg id="copy-done" class="icon" viewBox="0 0 24 24" aria-hidden="true" hidden><path d="M20 6 9 17l-5-5"/></svg></button>
     <button id="details-close" class="control square" type="button" data-label="close"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>
   </div>
@@ -849,7 +848,7 @@ const STRINGS = {
   en: {
     canvas: 'Database diagram', toolbar: 'Diagram tools', statusMenu: 'Table status', search: 'Table', searchHint: 'Find a table  /',
     searchLabel: 'Find a table', zoom: 'Zoom', zoomOut: 'Zoom out', zoomIn: 'Zoom in', fit: 'Fit',
-    details: 'Table details', comment: 'Comment', copyLink: 'Copy link', copied: 'Link copied', close: 'Close',
+    details: 'Table details', copyLink: 'Copy link', copied: 'Link copied', close: 'Close',
     columns: 'Columns', incoming: 'Referenced by', notFound: 'Not found',
     allTables: 'All tables', failure: 'The diagram did not open.',
     modeKeys: 'Keys only', modeKeysHint: 'Keys only: primary keys and the columns of references', minimap: 'Diagram map',
@@ -863,7 +862,7 @@ const STRINGS = {
   ru: {
     canvas: 'Схема базы', toolbar: 'Инструменты схемы', statusMenu: 'Статус таблиц', search: 'Таблица', searchHint: 'Поиск таблицы  /',
     searchLabel: 'Поиск таблицы', zoom: 'Масштаб', zoomOut: 'Уменьшить', zoomIn: 'Увеличить', fit: 'Весь вид',
-    details: 'Описание таблицы', comment: 'Комментарий', copyLink: 'Скопировать ссылку', copied: 'Ссылка скопирована', close: 'Закрыть',
+    details: 'Описание таблицы', copyLink: 'Скопировать ссылку', copied: 'Ссылка скопирована', close: 'Закрыть',
     columns: 'Столбцы', incoming: 'Ссылаются сюда', notFound: 'Не найдено',
     allTables: 'Все таблицы', failure: 'Схема не открылась.',
     modeKeys: 'Только ключи', modeKeysHint: 'Только ключи: первичные ключи и столбцы связей', minimap: 'Карта схемы',
@@ -1982,7 +1981,6 @@ const comments = {
   reported: '',             // последнее сообщённое положение меток: одинаковое не отправляется
 };
 const ANCHOR_MAX_BYTES = 128, utf8 = new TextEncoder();
-const commentButton = document.getElementById('details-comment');
 
 const anchorName = ({ table, column }) => (column === null ? table : `${table}.${column}`);
 function parseAnchor(anchor) {                        // { table, column } для своего якоря, иначе null
@@ -2018,7 +2016,7 @@ function reportPins() {                               // после каждой
   comments.reported = key;
   comments.anchors.placed(map);
 }
-function startComment(own, at) {                      // окно нового комментария у таблицы или столбца; at — запасное место
+function startComment(own, at) {                      // окно нового комментария у таблицы или столбца; at — точка нажатия
   const anchor = anchorName(own);
   if (utf8.encode(anchor).length > ANCHOR_MAX_BYTES) {
     console.error(`comment: the place ${anchor} is longer than claude.ai takes (${ANCHOR_MAX_BYTES} bytes)`);
@@ -2028,9 +2026,6 @@ function startComment(own, at) {                      // окно нового �
     if (result.opened) comments.composer = own;
   }, (error) => console.error('comment:', error));
 }
-commentButton.addEventListener('click', () => {
-  if (view.selected >= 0) startComment({ table: view.diagram.tables[view.selected].id, column: null }, commentButton);
-});
 async function connectComments() {                    // claude.ai отдаёт якоря только артефакту, где это объявлено
   const namespace = await capability('comments');
   if (!namespace) return;
@@ -2060,7 +2055,6 @@ async function connectComments() {                    // claude.ai отдаёт 
     if (!['not_granted', 'capability_disabled', 'capability_removed'].includes(error && error.code)) console.error('comments:', error);
     return;
   }
-  commentButton.hidden = false;
   reportPins();
 }
 

@@ -48,7 +48,7 @@ To update a diagram later, change the source or `schema.json` and rebuild. Repub
 
 ## Comments on the artifact
 
-In claude.ai comment mode, a click on a table or a column row opens the comment composer there; the table panel's Comment button does the same for the whole table. The thread's location is the table id (`marketplace.listings`) or the id with the column (`marketplace.listings.price`), and its pin moves with the diagram. A table the open diagram does not show, or one panned out of view, keeps its thread in claude.ai's comment list; choosing it there opens the table.
+In claude.ai comment mode, a click on a table or a column row opens the comment composer there. The thread's location is the table id (`marketplace.listings`) or the id with the column (`marketplace.listings.price`), and its pin moves with the diagram. A table the open diagram does not show, or one panned out of view, keeps its thread in claude.ai's comment list; choosing it there opens the table.
 
 A comment sent to Claude reaches the session that watches the artifact (the one that published it). Read it with the ArtifactComments tool, answer in the thread, and when it asks for a change, change the source or `schema.json`, rebuild and republish to the same URL.
 
