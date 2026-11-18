@@ -33,7 +33,7 @@ The demo's source is [`examples/storefront/schema.json`](examples/storefront/sch
 ## Development
 
 - Tests: `node tests/run-checks.mjs`.
-- Animation for this page: `bash docs/screenshots/make_demo.sh`.
+- Animation and video for this page: `node docs/screenshots/record-demo.mjs` (Chrome and ffmpeg).
 
 ## License
 
