@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <!-- Plugin icon: two table cards and one foreign key between them, as the viewer draws them.
+       Colours are the viewer's light theme: accent #5e6ad2, card white, muted rows. -->
+  <rect width="1024" height="1024" fill="#5e6ad2"/>
+  <path d="M440 340 H472 C532 340 512 664 572 664 H584" fill="none" stroke="#ffffff" stroke-width="28" stroke-linecap="round"/>
+  <g>
+    <rect x="152" y="180" width="300" height="360" rx="40" fill="#ffffff"/>
+    <rect x="192" y="220" width="150" height="32" rx="16" fill="#1f2023"/>
+    <rect x="152" y="284" width="300" height="4" fill="#e3e4ea"/>
+    <rect x="192" y="324" width="200" height="32" rx="16" fill="#5e6ad2"/>
+    <rect x="192" y="388" width="160" height="32" rx="16" fill="#c9cbd6"/>
+    <rect x="192" y="452" width="180" height="32" rx="16" fill="#c9cbd6"/>
+  </g>
+  <g>
+    <rect x="572" y="484" width="300" height="360" rx="40" fill="#ffffff"/>
+    <rect x="612" y="524" width="150" height="32" rx="16" fill="#1f2023"/>
+    <rect x="572" y="588" width="300" height="4" fill="#e3e4ea"/>
+    <rect x="612" y="648" width="200" height="32" rx="16" fill="#5e6ad2"/>
+    <rect x="612" y="712" width="160" height="32" rx="16" fill="#c9cbd6"/>
+    <rect x="612" y="776" width="180" height="32" rx="16" fill="#c9cbd6"/>
+  </g>
+</svg>

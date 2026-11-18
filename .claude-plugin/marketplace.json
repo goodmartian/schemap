@@ -1,5 +1,6 @@
 {
   "name": "schemap",
+  "description": "schemap: database schema diagrams for coding agents.",
   "owner": { "name": "goodmartian" },
   "plugins": [
     {
