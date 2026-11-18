@@ -1,0 +1,3276 @@
+{
+ "title": "Storefront",
+ "lang": "en",
+ "modules": [
+  {
+   "code": "accounts",
+   "name": "Accounts and teams"
+  },
+  {
+   "code": "catalog",
+   "name": "Catalog"
+  },
+  {
+   "code": "orders",
+   "name": "Orders and carts"
+  },
+  {
+   "code": "payments",
+   "name": "Payments"
+  },
+  {
+   "code": "shipping",
+   "name": "Shipping"
+  },
+  {
+   "code": "support",
+   "name": "Support and returns"
+  },
+  {
+   "code": "marketing",
+   "name": "Marketing and reviews"
+  },
+  {
+   "code": "analytics",
+   "name": "Analytics"
+  }
+ ],
+ "tables": [
+  {
+   "id": "accounts.users",
+   "name": "users",
+   "module": "accounts",
+   "title": "Customers and staff",
+   "note": "",
+   "status": "same",
+   "columns": [
+    {
+     "name": "id",
+     "type": "uuid",
+     "pk": true,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "email",
+     "type": "varchar(320)",
+     "pk": false,
+     "nullable": false,
+     "note": "Sign-in address, unique"
+    },
+    {
+     "name": "full_name",
+     "type": "text",
+     "pk": false,
+     "nullable": true,
+     "note": ""
+    },
+    {
+     "name": "phone",
+     "type": "varchar(32)",
+     "pk": false,
+     "nullable": true,
+     "note": ""
+    },
+    {
+     "name": "role",
+     "type": "text",
+     "pk": false,
+     "nullable": false,
+     "note": "customer, staff or admin"
+    },
+    {
+     "name": "created_at",
+     "type": "timestamptz",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "deleted_at",
+     "type": "timestamptz",
+     "pk": false,
+     "nullable": true,
+     "note": "Soft delete"
+    }
+   ]
+  },
+  {
+   "id": "accounts.sessions",
+   "name": "sessions",
+   "module": "accounts",
+   "title": "Sign-in sessions",
+   "note": "",
+   "status": "same",
+   "columns": [
+    {
+     "name": "id",
+     "type": "uuid",
+     "pk": true,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "user_id",
+     "type": "uuid",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "device",
+     "type": "text",
+     "pk": false,
+     "nullable": true,
+     "note": ""
+    },
+    {
+     "name": "expires_at",
+     "type": "timestamptz",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "created_at",
+     "type": "timestamptz",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    }
+   ]
+  },
+  {
+   "id": "accounts.password_resets",
+   "name": "password_resets",
+   "module": "accounts",
+   "title": "Password reset links",
+   "note": "",
+   "status": "same",
+   "columns": [
+    {
+     "name": "id",
+     "type": "uuid",
+     "pk": true,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "user_id",
+     "type": "uuid",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "token_hash",
+     "type": "bytea",
+     "pk": false,
+     "nullable": false,
+     "note": "Only the hash is stored"
+    },
+    {
+     "name": "expires_at",
+     "type": "timestamptz",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "used_at",
+     "type": "timestamptz",
+     "pk": false,
+     "nullable": true,
+     "note": ""
+    }
+   ]
+  },
+  {
+   "id": "accounts.teams",
+   "name": "teams",
+   "module": "accounts",
+   "title": "Seller teams",
+   "note": "",
+   "status": "same",
+   "columns": [
+    {
+     "name": "id",
+     "type": "uuid",
+     "pk": true,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "name",
+     "type": "text",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "owner_id",
+     "type": "uuid",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "plan",
+     "type": "text",
+     "pk": false,
+     "nullable": false,
+     "note": "free, pro or business"
+    },
+    {
+     "name": "created_at",
+     "type": "timestamptz",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    }
+   ]
+  },
+  {
+   "id": "accounts.team_members",
+   "name": "team_members",
+   "module": "accounts",
+   "title": "Team members",
+   "note": "",
+   "status": "same",
+   "columns": [
+    {
+     "name": "team_id",
+     "type": "uuid",
+     "pk": true,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "user_id",
+     "type": "uuid",
+     "pk": true,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "role",
+     "type": "text",
+     "pk": false,
+     "nullable": false,
+     "note": "owner, admin or editor"
+    },
+    {
+     "name": "invited_at",
+     "type": "timestamptz",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    }
+   ]
+  },
+  {
+   "id": "accounts.api_tokens",
+   "name": "api_tokens",
+   "module": "accounts",
+   "title": "API tokens",
+   "note": "Lets sellers connect their own tools",
+   "status": "new",
+   "columns": [
+    {
+     "name": "id",
+     "type": "uuid",
+     "pk": true,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "team_id",
+     "type": "uuid",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "name",
+     "type": "text",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "token_hash",
+     "type": "bytea",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "last_used_at",
+     "type": "timestamptz",
+     "pk": false,
+     "nullable": true,
+     "note": ""
+    },
+    {
+     "name": "revoked_at",
+     "type": "timestamptz",
+     "pk": false,
+     "nullable": true,
+     "note": ""
+    }
+   ]
+  },
+  {
+   "id": "accounts.audit_log",
+   "name": "audit_log",
+   "module": "accounts",
+   "title": "Audit log",
+   "note": "",
+   "status": "same",
+   "columns": [
+    {
+     "name": "id",
+     "type": "bigint",
+     "pk": true,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "actor_id",
+     "type": "uuid",
+     "pk": false,
+     "nullable": true,
+     "note": ""
+    },
+    {
+     "name": "action",
+     "type": "text",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "subject_type",
+     "type": "text",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "subject_id",
+     "type": "uuid",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "created_at",
+     "type": "timestamptz",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    }
+   ]
+  },
+  {
+   "id": "catalog.brands",
+   "name": "brands",
+   "module": "catalog",
+   "title": "Makers",
+   "note": "",
+   "status": "same",
+   "columns": [
+    {
+     "name": "id",
+     "type": "integer",
+     "pk": true,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "name",
+     "type": "text",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "slug",
+     "type": "text",
+     "pk": false,
+     "nullable": false,
+     "note": "Used in URLs"
+    }
+   ]
+  },
+  {
+   "id": "catalog.categories",
+   "name": "categories",
+   "module": "catalog",
+   "title": "Category tree",
+   "note": "",
+   "status": "same",
+   "columns": [
+    {
+     "name": "id",
+     "type": "integer",
+     "pk": true,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "parent_id",
+     "type": "integer",
+     "pk": false,
+     "nullable": true,
+     "note": "Empty for a top-level category"
+    },
+    {
+     "name": "name",
+     "type": "text",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "slug",
+     "type": "text",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "position",
+     "type": "integer",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    }
+   ]
+  },
+  {
+   "id": "catalog.products",
+   "name": "products",
+   "module": "catalog",
+   "title": "Items for sale",
+   "note": "One product, sold in one or more variants",
+   "status": "changed",
+   "columns": [
+    {
+     "name": "id",
+     "type": "uuid",
+     "pk": true,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "team_id",
+     "type": "uuid",
+     "pk": false,
+     "nullable": false,
+     "note": "The seller"
+    },
+    {
+     "name": "category_id",
+     "type": "integer",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "brand_id",
+     "type": "integer",
+     "pk": false,
+     "nullable": true,
+     "note": ""
+    },
+    {
+     "name": "title",
+     "type": "text",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "description",
+     "type": "text",
+     "pk": false,
+     "nullable": true,
+     "note": ""
+    },
+    {
+     "name": "status",
+     "type": "text",
+     "pk": false,
+     "nullable": false,
+     "note": "draft, active or archived"
+    },
+    {
+     "name": "created_at",
+     "type": "timestamptz",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "updated_at",
+     "type": "timestamptz",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    }
+   ]
+  },
+  {
+   "id": "catalog.product_variants",
+   "name": "product_variants",
+   "module": "catalog",
+   "title": "Sizes and colours",
+   "note": "",
+   "status": "same",
+   "columns": [
+    {
+     "name": "id",
+     "type": "uuid",
+     "pk": true,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "product_id",
+     "type": "uuid",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "sku",
+     "type": "text",
+     "pk": false,
+     "nullable": false,
+     "note": "Seller's stock code"
+    },
+    {
+     "name": "size",
+     "type": "text",
+     "pk": false,
+     "nullable": true,
+     "note": ""
+    },
+    {
+     "name": "color",
+     "type": "text",
+     "pk": false,
+     "nullable": true,
+     "note": ""
+    },
+    {
+     "name": "price",
+     "type": "numeric(12,2)",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "compare_at_price",
+     "type": "numeric(12,2)",
+     "pk": false,
+     "nullable": true,
+     "note": "Old price shown crossed out"
+    },
+    {
+     "name": "weight_grams",
+     "type": "integer",
+     "pk": false,
+     "nullable": true,
+     "note": ""
+    }
+   ]
+  },
+  {
+   "id": "catalog.product_images",
+   "name": "product_images",
+   "module": "catalog",
+   "title": "Product photos",
+   "note": "",
+   "status": "same",
+   "columns": [
+    {
+     "name": "product_id",
+     "type": "uuid",
+     "pk": true,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "position",
+     "type": "integer",
+     "pk": true,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "url",
+     "type": "text",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "alt_text",
+     "type": "text",
+     "pk": false,
+     "nullable": true,
+     "note": ""
+    }
+   ]
+  },
+  {
+   "id": "catalog.tags",
+   "name": "tags",
+   "module": "catalog",
+   "title": "Search tags",
+   "note": "",
+   "status": "same",
+   "columns": [
+    {
+     "name": "id",
+     "type": "integer",
+     "pk": true,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "name",
+     "type": "text",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    }
+   ]
+  },
+  {
+   "id": "catalog.product_tags",
+   "name": "product_tags",
+   "module": "catalog",
+   "title": "Product tags",
+   "note": "",
+   "status": "same",
+   "columns": [
+    {
+     "name": "product_id",
+     "type": "uuid",
+     "pk": true,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "tag_id",
+     "type": "integer",
+     "pk": true,
+     "nullable": false,
+     "note": ""
+    }
+   ]
+  },
+  {
+   "id": "catalog.collections",
+   "name": "collections",
+   "module": "catalog",
+   "title": "Curated sets",
+   "note": "Hand-picked sets for the home page",
+   "status": "same",
+   "columns": [
+    {
+     "name": "id",
+     "type": "integer",
+     "pk": true,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "title",
+     "type": "text",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "starts_at",
+     "type": "timestamptz",
+     "pk": false,
+     "nullable": true,
+     "note": ""
+    },
+    {
+     "name": "ends_at",
+     "type": "timestamptz",
+     "pk": false,
+     "nullable": true,
+     "note": ""
+    }
+   ]
+  },
+  {
+   "id": "catalog.collection_products",
+   "name": "collection_products",
+   "module": "catalog",
+   "title": "Products in collections",
+   "note": "",
+   "status": "same",
+   "columns": [
+    {
+     "name": "collection_id",
+     "type": "integer",
+     "pk": true,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "product_id",
+     "type": "uuid",
+     "pk": true,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "position",
+     "type": "integer",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    }
+   ]
+  },
+  {
+   "id": "catalog.warehouses",
+   "name": "warehouses",
+   "module": "catalog",
+   "title": "Stock locations",
+   "note": "",
+   "status": "same",
+   "columns": [
+    {
+     "name": "id",
+     "type": "integer",
+     "pk": true,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "team_id",
+     "type": "uuid",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "name",
+     "type": "text",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "address_id",
+     "type": "uuid",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    }
+   ]
+  },
+  {
+   "id": "catalog.inventory_levels",
+   "name": "inventory_levels",
+   "module": "catalog",
+   "title": "Stock levels",
+   "note": "",
+   "status": "changed",
+   "columns": [
+    {
+     "name": "variant_id",
+     "type": "uuid",
+     "pk": true,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "warehouse_id",
+     "type": "integer",
+     "pk": true,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "on_hand",
+     "type": "integer",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "reserved",
+     "type": "integer",
+     "pk": false,
+     "nullable": false,
+     "note": "Held by unpaid orders"
+    }
+   ]
+  },
+  {
+   "id": "orders.carts",
+   "name": "carts",
+   "module": "orders",
+   "title": "Shopping carts",
+   "note": "",
+   "status": "same",
+   "columns": [
+    {
+     "name": "id",
+     "type": "uuid",
+     "pk": true,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "user_id",
+     "type": "uuid",
+     "pk": false,
+     "nullable": true,
+     "note": "Empty for a guest"
+    },
+    {
+     "name": "created_at",
+     "type": "timestamptz",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "updated_at",
+     "type": "timestamptz",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    }
+   ]
+  },
+  {
+   "id": "orders.cart_items",
+   "name": "cart_items",
+   "module": "orders",
+   "title": "Cart items",
+   "note": "",
+   "status": "same",
+   "columns": [
+    {
+     "name": "cart_id",
+     "type": "uuid",
+     "pk": true,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "variant_id",
+     "type": "uuid",
+     "pk": true,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "quantity",
+     "type": "integer",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    }
+   ]
+  },
+  {
+   "id": "orders.orders",
+   "name": "orders",
+   "module": "orders",
+   "title": "Customer orders",
+   "note": "One checkout with one seller",
+   "status": "changed",
+   "columns": [
+    {
+     "name": "id",
+     "type": "uuid",
+     "pk": true,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "number",
+     "type": "bigint",
+     "pk": false,
+     "nullable": false,
+     "note": "Shown to the customer"
+    },
+    {
+     "name": "user_id",
+     "type": "uuid",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "team_id",
+     "type": "uuid",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "status",
+     "type": "text",
+     "pk": false,
+     "nullable": false,
+     "note": "placed, paid, shipped, delivered or cancelled"
+    },
+    {
+     "name": "shipping_address_id",
+     "type": "uuid",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "subtotal",
+     "type": "numeric(12,2)",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "discount",
+     "type": "numeric(12,2)",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "total",
+     "type": "numeric(12,2)",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "currency",
+     "type": "char(3)",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "placed_at",
+     "type": "timestamptz",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    }
+   ]
+  },
+  {
+   "id": "orders.order_items",
+   "name": "order_items",
+   "module": "orders",
+   "title": "Order items",
+   "note": "",
+   "status": "same",
+   "columns": [
+    {
+     "name": "order_id",
+     "type": "uuid",
+     "pk": true,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "variant_id",
+     "type": "uuid",
+     "pk": true,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "quantity",
+     "type": "integer",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "unit_price",
+     "type": "numeric(12,2)",
+     "pk": false,
+     "nullable": false,
+     "note": "Price at the moment of purchase"
+    }
+   ]
+  },
+  {
+   "id": "orders.order_status_events",
+   "name": "order_status_events",
+   "module": "orders",
+   "title": "Order history",
+   "note": "",
+   "status": "same",
+   "columns": [
+    {
+     "name": "id",
+     "type": "bigint",
+     "pk": true,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "order_id",
+     "type": "uuid",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "from_status",
+     "type": "text",
+     "pk": false,
+     "nullable": true,
+     "note": ""
+    },
+    {
+     "name": "to_status",
+     "type": "text",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "actor_id",
+     "type": "uuid",
+     "pk": false,
+     "nullable": true,
+     "note": ""
+    },
+    {
+     "name": "created_at",
+     "type": "timestamptz",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    }
+   ]
+  },
+  {
+   "id": "orders.discounts",
+   "name": "discounts",
+   "module": "orders",
+   "title": "Discount codes",
+   "note": "",
+   "status": "same",
+   "columns": [
+    {
+     "name": "id",
+     "type": "integer",
+     "pk": true,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "team_id",
+     "type": "uuid",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "code",
+     "type": "text",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "percent",
+     "type": "integer",
+     "pk": false,
+     "nullable": true,
+     "note": ""
+    },
+    {
+     "name": "amount",
+     "type": "numeric(12,2)",
+     "pk": false,
+     "nullable": true,
+     "note": ""
+    },
+    {
+     "name": "starts_at",
+     "type": "timestamptz",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "ends_at",
+     "type": "timestamptz",
+     "pk": false,
+     "nullable": true,
+     "note": ""
+    },
+    {
+     "name": "usage_limit",
+     "type": "integer",
+     "pk": false,
+     "nullable": true,
+     "note": ""
+    }
+   ]
+  },
+  {
+   "id": "orders.discount_redemptions",
+   "name": "discount_redemptions",
+   "module": "orders",
+   "title": "Used discount codes",
+   "note": "",
+   "status": "same",
+   "columns": [
+    {
+     "name": "discount_id",
+     "type": "integer",
+     "pk": true,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "order_id",
+     "type": "uuid",
+     "pk": true,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "amount",
+     "type": "numeric(12,2)",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    }
+   ]
+  },
+  {
+   "id": "orders.gift_cards",
+   "name": "gift_cards",
+   "module": "orders",
+   "title": "Gift cards",
+   "note": "",
+   "status": "new",
+   "columns": [
+    {
+     "name": "id",
+     "type": "uuid",
+     "pk": true,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "code_hash",
+     "type": "bytea",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "balance",
+     "type": "numeric(12,2)",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "currency",
+     "type": "char(3)",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "purchased_by",
+     "type": "uuid",
+     "pk": false,
+     "nullable": true,
+     "note": ""
+    },
+    {
+     "name": "expires_at",
+     "type": "timestamptz",
+     "pk": false,
+     "nullable": true,
+     "note": ""
+    }
+   ]
+  },
+  {
+   "id": "payments.payment_methods",
+   "name": "payment_methods",
+   "module": "payments",
+   "title": "Saved cards",
+   "note": "",
+   "status": "same",
+   "columns": [
+    {
+     "name": "id",
+     "type": "uuid",
+     "pk": true,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "user_id",
+     "type": "uuid",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "provider",
+     "type": "text",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "provider_ref",
+     "type": "text",
+     "pk": false,
+     "nullable": false,
+     "note": "Token from the provider, never the card number"
+    },
+    {
+     "name": "last4",
+     "type": "char(4)",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "expires_on",
+     "type": "date",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    }
+   ]
+  },
+  {
+   "id": "payments.payments",
+   "name": "payments",
+   "module": "payments",
+   "title": "Card and gift card payments",
+   "note": "",
+   "status": "changed",
+   "columns": [
+    {
+     "name": "id",
+     "type": "uuid",
+     "pk": true,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "order_id",
+     "type": "uuid",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "method_id",
+     "type": "uuid",
+     "pk": false,
+     "nullable": true,
+     "note": ""
+    },
+    {
+     "name": "gift_card_id",
+     "type": "uuid",
+     "pk": false,
+     "nullable": true,
+     "note": ""
+    },
+    {
+     "name": "amount",
+     "type": "numeric(12,2)",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "status",
+     "type": "text",
+     "pk": false,
+     "nullable": false,
+     "note": "pending, captured or failed"
+    },
+    {
+     "name": "captured_at",
+     "type": "timestamptz",
+     "pk": false,
+     "nullable": true,
+     "note": ""
+    }
+   ]
+  },
+  {
+   "id": "payments.refunds",
+   "name": "refunds",
+   "module": "payments",
+   "title": "Money back",
+   "note": "",
+   "status": "same",
+   "columns": [
+    {
+     "name": "id",
+     "type": "uuid",
+     "pk": true,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "payment_id",
+     "type": "uuid",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "return_id",
+     "type": "uuid",
+     "pk": false,
+     "nullable": true,
+     "note": ""
+    },
+    {
+     "name": "amount",
+     "type": "numeric(12,2)",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "reason",
+     "type": "text",
+     "pk": false,
+     "nullable": true,
+     "note": ""
+    },
+    {
+     "name": "created_at",
+     "type": "timestamptz",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    }
+   ]
+  },
+  {
+   "id": "payments.invoices",
+   "name": "invoices",
+   "module": "payments",
+   "title": "Tax invoices",
+   "note": "",
+   "status": "same",
+   "columns": [
+    {
+     "name": "id",
+     "type": "uuid",
+     "pk": true,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "order_id",
+     "type": "uuid",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "number",
+     "type": "text",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "issued_at",
+     "type": "timestamptz",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "pdf_url",
+     "type": "text",
+     "pk": false,
+     "nullable": true,
+     "note": ""
+    }
+   ]
+  },
+  {
+   "id": "payments.invoice_lines",
+   "name": "invoice_lines",
+   "module": "payments",
+   "title": "Invoice lines",
+   "note": "",
+   "status": "same",
+   "columns": [
+    {
+     "name": "invoice_id",
+     "type": "uuid",
+     "pk": true,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "line",
+     "type": "integer",
+     "pk": true,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "description",
+     "type": "text",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "amount",
+     "type": "numeric(12,2)",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "tax_rate",
+     "type": "numeric(5,2)",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    }
+   ]
+  },
+  {
+   "id": "payments.payouts",
+   "name": "payouts",
+   "module": "payments",
+   "title": "Payouts to sellers",
+   "note": "",
+   "status": "new",
+   "columns": [
+    {
+     "name": "id",
+     "type": "uuid",
+     "pk": true,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "team_id",
+     "type": "uuid",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "amount",
+     "type": "numeric(12,2)",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "fee",
+     "type": "numeric(12,2)",
+     "pk": false,
+     "nullable": false,
+     "note": "Marketplace commission"
+    },
+    {
+     "name": "period_start",
+     "type": "date",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "period_end",
+     "type": "date",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "paid_at",
+     "type": "timestamptz",
+     "pk": false,
+     "nullable": true,
+     "note": ""
+    }
+   ]
+  },
+  {
+   "id": "shipping.addresses",
+   "name": "addresses",
+   "module": "shipping",
+   "title": "Delivery addresses",
+   "note": "",
+   "status": "same",
+   "columns": [
+    {
+     "name": "id",
+     "type": "uuid",
+     "pk": true,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "user_id",
+     "type": "uuid",
+     "pk": false,
+     "nullable": true,
+     "note": ""
+    },
+    {
+     "name": "line1",
+     "type": "text",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "line2",
+     "type": "text",
+     "pk": false,
+     "nullable": true,
+     "note": ""
+    },
+    {
+     "name": "city",
+     "type": "text",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "postcode",
+     "type": "text",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "country",
+     "type": "char(2)",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    }
+   ]
+  },
+  {
+   "id": "shipping.carriers",
+   "name": "carriers",
+   "module": "shipping",
+   "title": "Delivery companies",
+   "note": "",
+   "status": "same",
+   "columns": [
+    {
+     "name": "id",
+     "type": "integer",
+     "pk": true,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "name",
+     "type": "text",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "tracking_url",
+     "type": "text",
+     "pk": false,
+     "nullable": false,
+     "note": "With {number} in place of the tracking number"
+    }
+   ]
+  },
+  {
+   "id": "shipping.shipping_rates",
+   "name": "shipping_rates",
+   "module": "shipping",
+   "title": "Shipping prices",
+   "note": "",
+   "status": "same",
+   "columns": [
+    {
+     "name": "id",
+     "type": "integer",
+     "pk": true,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "carrier_id",
+     "type": "integer",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "country",
+     "type": "char(2)",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "max_weight_grams",
+     "type": "integer",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "price",
+     "type": "numeric(12,2)",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    }
+   ]
+  },
+  {
+   "id": "shipping.shipments",
+   "name": "shipments",
+   "module": "shipping",
+   "title": "Parcels",
+   "note": "",
+   "status": "same",
+   "columns": [
+    {
+     "name": "id",
+     "type": "uuid",
+     "pk": true,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "order_id",
+     "type": "uuid",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "carrier_id",
+     "type": "integer",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "tracking_number",
+     "type": "text",
+     "pk": false,
+     "nullable": true,
+     "note": ""
+    },
+    {
+     "name": "shipped_at",
+     "type": "timestamptz",
+     "pk": false,
+     "nullable": true,
+     "note": ""
+    },
+    {
+     "name": "delivered_at",
+     "type": "timestamptz",
+     "pk": false,
+     "nullable": true,
+     "note": ""
+    }
+   ]
+  },
+  {
+   "id": "shipping.shipment_items",
+   "name": "shipment_items",
+   "module": "shipping",
+   "title": "Items in a shipment",
+   "note": "",
+   "status": "same",
+   "columns": [
+    {
+     "name": "shipment_id",
+     "type": "uuid",
+     "pk": true,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "variant_id",
+     "type": "uuid",
+     "pk": true,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "quantity",
+     "type": "integer",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    }
+   ]
+  },
+  {
+   "id": "shipping.tracking_events",
+   "name": "tracking_events",
+   "module": "shipping",
+   "title": "Tracking events",
+   "note": "Received from the carrier",
+   "status": "new",
+   "columns": [
+    {
+     "name": "id",
+     "type": "bigint",
+     "pk": true,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "shipment_id",
+     "type": "uuid",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "status",
+     "type": "text",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "location",
+     "type": "text",
+     "pk": false,
+     "nullable": true,
+     "note": ""
+    },
+    {
+     "name": "happened_at",
+     "type": "timestamptz",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    }
+   ]
+  },
+  {
+   "id": "support.tickets",
+   "name": "tickets",
+   "module": "support",
+   "title": "Support tickets",
+   "note": "",
+   "status": "same",
+   "columns": [
+    {
+     "name": "id",
+     "type": "uuid",
+     "pk": true,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "user_id",
+     "type": "uuid",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "order_id",
+     "type": "uuid",
+     "pk": false,
+     "nullable": true,
+     "note": ""
+    },
+    {
+     "name": "assignee_id",
+     "type": "uuid",
+     "pk": false,
+     "nullable": true,
+     "note": ""
+    },
+    {
+     "name": "subject",
+     "type": "text",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "status",
+     "type": "text",
+     "pk": false,
+     "nullable": false,
+     "note": "open, waiting or closed"
+    },
+    {
+     "name": "created_at",
+     "type": "timestamptz",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    }
+   ]
+  },
+  {
+   "id": "support.ticket_messages",
+   "name": "ticket_messages",
+   "module": "support",
+   "title": "Ticket messages",
+   "note": "",
+   "status": "same",
+   "columns": [
+    {
+     "name": "id",
+     "type": "uuid",
+     "pk": true,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "ticket_id",
+     "type": "uuid",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "author_id",
+     "type": "uuid",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "body",
+     "type": "text",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "internal",
+     "type": "boolean",
+     "pk": false,
+     "nullable": false,
+     "note": "Seen by staff only"
+    },
+    {
+     "name": "created_at",
+     "type": "timestamptz",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    }
+   ]
+  },
+  {
+   "id": "support.returns",
+   "name": "returns",
+   "module": "support",
+   "title": "Return requests",
+   "note": "A customer sends items back",
+   "status": "new",
+   "columns": [
+    {
+     "name": "id",
+     "type": "uuid",
+     "pk": true,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "order_id",
+     "type": "uuid",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "reason",
+     "type": "text",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "status",
+     "type": "text",
+     "pk": false,
+     "nullable": false,
+     "note": "requested, approved, received or refunded"
+    },
+    {
+     "name": "requested_at",
+     "type": "timestamptz",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    }
+   ]
+  },
+  {
+   "id": "support.return_items",
+   "name": "return_items",
+   "module": "support",
+   "title": "Returned items",
+   "note": "",
+   "status": "new",
+   "columns": [
+    {
+     "name": "return_id",
+     "type": "uuid",
+     "pk": true,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "variant_id",
+     "type": "uuid",
+     "pk": true,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "quantity",
+     "type": "integer",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "condition",
+     "type": "text",
+     "pk": false,
+     "nullable": true,
+     "note": "Checked at the warehouse"
+    }
+   ]
+  },
+  {
+   "id": "marketing.reviews",
+   "name": "reviews",
+   "module": "marketing",
+   "title": "Product reviews",
+   "note": "",
+   "status": "same",
+   "columns": [
+    {
+     "name": "id",
+     "type": "uuid",
+     "pk": true,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "product_id",
+     "type": "uuid",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "user_id",
+     "type": "uuid",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "order_id",
+     "type": "uuid",
+     "pk": false,
+     "nullable": false,
+     "note": "Only buyers can review"
+    },
+    {
+     "name": "rating",
+     "type": "smallint",
+     "pk": false,
+     "nullable": false,
+     "note": "1 to 5"
+    },
+    {
+     "name": "body",
+     "type": "text",
+     "pk": false,
+     "nullable": true,
+     "note": ""
+    },
+    {
+     "name": "published_at",
+     "type": "timestamptz",
+     "pk": false,
+     "nullable": true,
+     "note": ""
+    }
+   ]
+  },
+  {
+   "id": "marketing.review_votes",
+   "name": "review_votes",
+   "module": "marketing",
+   "title": "Helpful votes",
+   "note": "",
+   "status": "same",
+   "columns": [
+    {
+     "name": "review_id",
+     "type": "uuid",
+     "pk": true,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "user_id",
+     "type": "uuid",
+     "pk": true,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "helpful",
+     "type": "boolean",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    }
+   ]
+  },
+  {
+   "id": "marketing.wishlists",
+   "name": "wishlists",
+   "module": "marketing",
+   "title": "Saved for later",
+   "note": "",
+   "status": "same",
+   "columns": [
+    {
+     "name": "user_id",
+     "type": "uuid",
+     "pk": true,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "variant_id",
+     "type": "uuid",
+     "pk": true,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "added_at",
+     "type": "timestamptz",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    }
+   ]
+  },
+  {
+   "id": "marketing.newsletter_subscriptions",
+   "name": "newsletter_subscriptions",
+   "module": "marketing",
+   "title": "Newsletter",
+   "note": "",
+   "status": "same",
+   "columns": [
+    {
+     "name": "email",
+     "type": "varchar(320)",
+     "pk": true,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "user_id",
+     "type": "uuid",
+     "pk": false,
+     "nullable": true,
+     "note": ""
+    },
+    {
+     "name": "confirmed_at",
+     "type": "timestamptz",
+     "pk": false,
+     "nullable": true,
+     "note": ""
+    },
+    {
+     "name": "unsubscribed_at",
+     "type": "timestamptz",
+     "pk": false,
+     "nullable": true,
+     "note": ""
+    }
+   ]
+  },
+  {
+   "id": "marketing.campaigns",
+   "name": "campaigns",
+   "module": "marketing",
+   "title": "Email campaigns",
+   "note": "",
+   "status": "new",
+   "columns": [
+    {
+     "name": "id",
+     "type": "uuid",
+     "pk": true,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "team_id",
+     "type": "uuid",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "subject",
+     "type": "text",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "collection_id",
+     "type": "integer",
+     "pk": false,
+     "nullable": true,
+     "note": ""
+    },
+    {
+     "name": "scheduled_at",
+     "type": "timestamptz",
+     "pk": false,
+     "nullable": true,
+     "note": ""
+    },
+    {
+     "name": "sent_at",
+     "type": "timestamptz",
+     "pk": false,
+     "nullable": true,
+     "note": ""
+    }
+   ]
+  },
+  {
+   "id": "analytics.product_views_daily",
+   "name": "product_views_daily",
+   "module": "analytics",
+   "title": "Product views by day",
+   "note": "",
+   "status": "same",
+   "columns": [
+    {
+     "name": "day",
+     "type": "date",
+     "pk": true,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "product_id",
+     "type": "uuid",
+     "pk": true,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "views",
+     "type": "integer",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "unique_visitors",
+     "type": "integer",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    }
+   ]
+  },
+  {
+   "id": "analytics.sales_daily",
+   "name": "sales_daily",
+   "module": "analytics",
+   "title": "Sales by day",
+   "note": "",
+   "status": "same",
+   "columns": [
+    {
+     "name": "day",
+     "type": "date",
+     "pk": true,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "team_id",
+     "type": "uuid",
+     "pk": true,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "orders",
+     "type": "integer",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "revenue",
+     "type": "numeric(14,2)",
+     "pk": false,
+     "nullable": false,
+     "note": ""
+    },
+    {
+     "name": "currency",
+     "type": "char(3)",
+     "pk": true,
+     "nullable": false,
+     "note": ""
+    }
+   ]
+  }
+ ],
+ "refs": [
+  {
+   "from": {
+    "table": "accounts.sessions",
+    "columns": [
+     "user_id"
+    ]
+   },
+   "to": {
+    "table": "accounts.users",
+    "columns": [
+     "id"
+    ]
+   }
+  },
+  {
+   "from": {
+    "table": "accounts.password_resets",
+    "columns": [
+     "user_id"
+    ]
+   },
+   "to": {
+    "table": "accounts.users",
+    "columns": [
+     "id"
+    ]
+   }
+  },
+  {
+   "from": {
+    "table": "accounts.teams",
+    "columns": [
+     "owner_id"
+    ]
+   },
+   "to": {
+    "table": "accounts.users",
+    "columns": [
+     "id"
+    ]
+   }
+  },
+  {
+   "from": {
+    "table": "accounts.team_members",
+    "columns": [
+     "team_id"
+    ]
+   },
+   "to": {
+    "table": "accounts.teams",
+    "columns": [
+     "id"
+    ]
+   }
+  },
+  {
+   "from": {
+    "table": "accounts.team_members",
+    "columns": [
+     "user_id"
+    ]
+   },
+   "to": {
+    "table": "accounts.users",
+    "columns": [
+     "id"
+    ]
+   }
+  },
+  {
+   "from": {
+    "table": "accounts.api_tokens",
+    "columns": [
+     "team_id"
+    ]
+   },
+   "to": {
+    "table": "accounts.teams",
+    "columns": [
+     "id"
+    ]
+   }
+  },
+  {
+   "from": {
+    "table": "accounts.audit_log",
+    "columns": [
+     "actor_id"
+    ]
+   },
+   "to": {
+    "table": "accounts.users",
+    "columns": [
+     "id"
+    ]
+   }
+  },
+  {
+   "from": {
+    "table": "catalog.categories",
+    "columns": [
+     "parent_id"
+    ]
+   },
+   "to": {
+    "table": "catalog.categories",
+    "columns": [
+     "id"
+    ]
+   }
+  },
+  {
+   "from": {
+    "table": "catalog.products",
+    "columns": [
+     "team_id"
+    ]
+   },
+   "to": {
+    "table": "accounts.teams",
+    "columns": [
+     "id"
+    ]
+   }
+  },
+  {
+   "from": {
+    "table": "catalog.products",
+    "columns": [
+     "category_id"
+    ]
+   },
+   "to": {
+    "table": "catalog.categories",
+    "columns": [
+     "id"
+    ]
+   }
+  },
+  {
+   "from": {
+    "table": "catalog.products",
+    "columns": [
+     "brand_id"
+    ]
+   },
+   "to": {
+    "table": "catalog.brands",
+    "columns": [
+     "id"
+    ]
+   }
+  },
+  {
+   "from": {
+    "table": "catalog.product_variants",
+    "columns": [
+     "product_id"
+    ]
+   },
+   "to": {
+    "table": "catalog.products",
+    "columns": [
+     "id"
+    ]
+   }
+  },
+  {
+   "from": {
+    "table": "catalog.product_images",
+    "columns": [
+     "product_id"
+    ]
+   },
+   "to": {
+    "table": "catalog.products",
+    "columns": [
+     "id"
+    ]
+   }
+  },
+  {
+   "from": {
+    "table": "catalog.product_tags",
+    "columns": [
+     "product_id"
+    ]
+   },
+   "to": {
+    "table": "catalog.products",
+    "columns": [
+     "id"
+    ]
+   }
+  },
+  {
+   "from": {
+    "table": "catalog.product_tags",
+    "columns": [
+     "tag_id"
+    ]
+   },
+   "to": {
+    "table": "catalog.tags",
+    "columns": [
+     "id"
+    ]
+   }
+  },
+  {
+   "from": {
+    "table": "catalog.collection_products",
+    "columns": [
+     "collection_id"
+    ]
+   },
+   "to": {
+    "table": "catalog.collections",
+    "columns": [
+     "id"
+    ]
+   }
+  },
+  {
+   "from": {
+    "table": "catalog.collection_products",
+    "columns": [
+     "product_id"
+    ]
+   },
+   "to": {
+    "table": "catalog.products",
+    "columns": [
+     "id"
+    ]
+   }
+  },
+  {
+   "from": {
+    "table": "catalog.warehouses",
+    "columns": [
+     "team_id"
+    ]
+   },
+   "to": {
+    "table": "accounts.teams",
+    "columns": [
+     "id"
+    ]
+   }
+  },
+  {
+   "from": {
+    "table": "catalog.warehouses",
+    "columns": [
+     "address_id"
+    ]
+   },
+   "to": {
+    "table": "shipping.addresses",
+    "columns": [
+     "id"
+    ]
+   }
+  },
+  {
+   "from": {
+    "table": "catalog.inventory_levels",
+    "columns": [
+     "variant_id"
+    ]
+   },
+   "to": {
+    "table": "catalog.product_variants",
+    "columns": [
+     "id"
+    ]
+   }
+  },
+  {
+   "from": {
+    "table": "catalog.inventory_levels",
+    "columns": [
+     "warehouse_id"
+    ]
+   },
+   "to": {
+    "table": "catalog.warehouses",
+    "columns": [
+     "id"
+    ]
+   }
+  },
+  {
+   "from": {
+    "table": "orders.carts",
+    "columns": [
+     "user_id"
+    ]
+   },
+   "to": {
+    "table": "accounts.users",
+    "columns": [
+     "id"
+    ]
+   }
+  },
+  {
+   "from": {
+    "table": "orders.cart_items",
+    "columns": [
+     "cart_id"
+    ]
+   },
+   "to": {
+    "table": "orders.carts",
+    "columns": [
+     "id"
+    ]
+   }
+  },
+  {
+   "from": {
+    "table": "orders.cart_items",
+    "columns": [
+     "variant_id"
+    ]
+   },
+   "to": {
+    "table": "catalog.product_variants",
+    "columns": [
+     "id"
+    ]
+   }
+  },
+  {
+   "from": {
+    "table": "orders.orders",
+    "columns": [
+     "user_id"
+    ]
+   },
+   "to": {
+    "table": "accounts.users",
+    "columns": [
+     "id"
+    ]
+   }
+  },
+  {
+   "from": {
+    "table": "orders.orders",
+    "columns": [
+     "team_id"
+    ]
+   },
+   "to": {
+    "table": "accounts.teams",
+    "columns": [
+     "id"
+    ]
+   }
+  },
+  {
+   "from": {
+    "table": "orders.orders",
+    "columns": [
+     "shipping_address_id"
+    ]
+   },
+   "to": {
+    "table": "shipping.addresses",
+    "columns": [
+     "id"
+    ]
+   }
+  },
+  {
+   "from": {
+    "table": "orders.order_items",
+    "columns": [
+     "order_id"
+    ]
+   },
+   "to": {
+    "table": "orders.orders",
+    "columns": [
+     "id"
+    ]
+   }
+  },
+  {
+   "from": {
+    "table": "orders.order_items",
+    "columns": [
+     "variant_id"
+    ]
+   },
+   "to": {
+    "table": "catalog.product_variants",
+    "columns": [
+     "id"
+    ]
+   }
+  },
+  {
+   "from": {
+    "table": "orders.order_status_events",
+    "columns": [
+     "order_id"
+    ]
+   },
+   "to": {
+    "table": "orders.orders",
+    "columns": [
+     "id"
+    ]
+   }
+  },
+  {
+   "from": {
+    "table": "orders.order_status_events",
+    "columns": [
+     "actor_id"
+    ]
+   },
+   "to": {
+    "table": "accounts.users",
+    "columns": [
+     "id"
+    ]
+   }
+  },
+  {
+   "from": {
+    "table": "orders.discounts",
+    "columns": [
+     "team_id"
+    ]
+   },
+   "to": {
+    "table": "accounts.teams",
+    "columns": [
+     "id"
+    ]
+   }
+  },
+  {
+   "from": {
+    "table": "orders.discount_redemptions",
+    "columns": [
+     "discount_id"
+    ]
+   },
+   "to": {
+    "table": "orders.discounts",
+    "columns": [
+     "id"
+    ]
+   }
+  },
+  {
+   "from": {
+    "table": "orders.discount_redemptions",
+    "columns": [
+     "order_id"
+    ]
+   },
+   "to": {
+    "table": "orders.orders",
+    "columns": [
+     "id"
+    ]
+   }
+  },
+  {
+   "from": {
+    "table": "orders.gift_cards",
+    "columns": [
+     "purchased_by"
+    ]
+   },
+   "to": {
+    "table": "accounts.users",
+    "columns": [
+     "id"
+    ]
+   }
+  },
+  {
+   "from": {
+    "table": "payments.payment_methods",
+    "columns": [
+     "user_id"
+    ]
+   },
+   "to": {
+    "table": "accounts.users",
+    "columns": [
+     "id"
+    ]
+   }
+  },
+  {
+   "from": {
+    "table": "payments.payments",
+    "columns": [
+     "order_id"
+    ]
+   },
+   "to": {
+    "table": "orders.orders",
+    "columns": [
+     "id"
+    ]
+   }
+  },
+  {
+   "from": {
+    "table": "payments.payments",
+    "columns": [
+     "method_id"
+    ]
+   },
+   "to": {
+    "table": "payments.payment_methods",
+    "columns": [
+     "id"
+    ]
+   }
+  },
+  {
+   "from": {
+    "table": "payments.payments",
+    "columns": [
+     "gift_card_id"
+    ]
+   },
+   "to": {
+    "table": "orders.gift_cards",
+    "columns": [
+     "id"
+    ]
+   }
+  },
+  {
+   "from": {
+    "table": "payments.refunds",
+    "columns": [
+     "payment_id"
+    ]
+   },
+   "to": {
+    "table": "payments.payments",
+    "columns": [
+     "id"
+    ]
+   }
+  },
+  {
+   "from": {
+    "table": "payments.refunds",
+    "columns": [
+     "return_id"
+    ]
+   },
+   "to": {
+    "table": "support.returns",
+    "columns": [
+     "id"
+    ]
+   }
+  },
+  {
+   "from": {
+    "table": "payments.invoices",
+    "columns": [
+     "order_id"
+    ]
+   },
+   "to": {
+    "table": "orders.orders",
+    "columns": [
+     "id"
+    ]
+   }
+  },
+  {
+   "from": {
+    "table": "payments.invoice_lines",
+    "columns": [
+     "invoice_id"
+    ]
+   },
+   "to": {
+    "table": "payments.invoices",
+    "columns": [
+     "id"
+    ]
+   }
+  },
+  {
+   "from": {
+    "table": "payments.payouts",
+    "columns": [
+     "team_id"
+    ]
+   },
+   "to": {
+    "table": "accounts.teams",
+    "columns": [
+     "id"
+    ]
+   }
+  },
+  {
+   "from": {
+    "table": "shipping.addresses",
+    "columns": [
+     "user_id"
+    ]
+   },
+   "to": {
+    "table": "accounts.users",
+    "columns": [
+     "id"
+    ]
+   }
+  },
+  {
+   "from": {
+    "table": "shipping.shipping_rates",
+    "columns": [
+     "carrier_id"
+    ]
+   },
+   "to": {
+    "table": "shipping.carriers",
+    "columns": [
+     "id"
+    ]
+   }
+  },
+  {
+   "from": {
+    "table": "shipping.shipments",
+    "columns": [
+     "order_id"
+    ]
+   },
+   "to": {
+    "table": "orders.orders",
+    "columns": [
+     "id"
+    ]
+   }
+  },
+  {
+   "from": {
+    "table": "shipping.shipments",
+    "columns": [
+     "carrier_id"
+    ]
+   },
+   "to": {
+    "table": "shipping.carriers",
+    "columns": [
+     "id"
+    ]
+   }
+  },
+  {
+   "from": {
+    "table": "shipping.shipment_items",
+    "columns": [
+     "shipment_id"
+    ]
+   },
+   "to": {
+    "table": "shipping.shipments",
+    "columns": [
+     "id"
+    ]
+   }
+  },
+  {
+   "from": {
+    "table": "shipping.shipment_items",
+    "columns": [
+     "variant_id"
+    ]
+   },
+   "to": {
+    "table": "catalog.product_variants",
+    "columns": [
+     "id"
+    ]
+   }
+  },
+  {
+   "from": {
+    "table": "shipping.tracking_events",
+    "columns": [
+     "shipment_id"
+    ]
+   },
+   "to": {
+    "table": "shipping.shipments",
+    "columns": [
+     "id"
+    ]
+   }
+  },
+  {
+   "from": {
+    "table": "support.tickets",
+    "columns": [
+     "user_id"
+    ]
+   },
+   "to": {
+    "table": "accounts.users",
+    "columns": [
+     "id"
+    ]
+   }
+  },
+  {
+   "from": {
+    "table": "support.tickets",
+    "columns": [
+     "order_id"
+    ]
+   },
+   "to": {
+    "table": "orders.orders",
+    "columns": [
+     "id"
+    ]
+   }
+  },
+  {
+   "from": {
+    "table": "support.tickets",
+    "columns": [
+     "assignee_id"
+    ]
+   },
+   "to": {
+    "table": "accounts.users",
+    "columns": [
+     "id"
+    ]
+   }
+  },
+  {
+   "from": {
+    "table": "support.ticket_messages",
+    "columns": [
+     "ticket_id"
+    ]
+   },
+   "to": {
+    "table": "support.tickets",
+    "columns": [
+     "id"
+    ]
+   }
+  },
+  {
+   "from": {
+    "table": "support.ticket_messages",
+    "columns": [
+     "author_id"
+    ]
+   },
+   "to": {
+    "table": "accounts.users",
+    "columns": [
+     "id"
+    ]
+   }
+  },
+  {
+   "from": {
+    "table": "support.returns",
+    "columns": [
+     "order_id"
+    ]
+   },
+   "to": {
+    "table": "orders.orders",
+    "columns": [
+     "id"
+    ]
+   }
+  },
+  {
+   "from": {
+    "table": "support.return_items",
+    "columns": [
+     "return_id"
+    ]
+   },
+   "to": {
+    "table": "support.returns",
+    "columns": [
+     "id"
+    ]
+   }
+  },
+  {
+   "from": {
+    "table": "support.return_items",
+    "columns": [
+     "variant_id"
+    ]
+   },
+   "to": {
+    "table": "catalog.product_variants",
+    "columns": [
+     "id"
+    ]
+   }
+  },
+  {
+   "from": {
+    "table": "marketing.reviews",
+    "columns": [
+     "product_id"
+    ]
+   },
+   "to": {
+    "table": "catalog.products",
+    "columns": [
+     "id"
+    ]
+   }
+  },
+  {
+   "from": {
+    "table": "marketing.reviews",
+    "columns": [
+     "user_id"
+    ]
+   },
+   "to": {
+    "table": "accounts.users",
+    "columns": [
+     "id"
+    ]
+   }
+  },
+  {
+   "from": {
+    "table": "marketing.reviews",
+    "columns": [
+     "order_id"
+    ]
+   },
+   "to": {
+    "table": "orders.orders",
+    "columns": [
+     "id"
+    ]
+   }
+  },
+  {
+   "from": {
+    "table": "marketing.review_votes",
+    "columns": [
+     "review_id"
+    ]
+   },
+   "to": {
+    "table": "marketing.reviews",
+    "columns": [
+     "id"
+    ]
+   }
+  },
+  {
+   "from": {
+    "table": "marketing.review_votes",
+    "columns": [
+     "user_id"
+    ]
+   },
+   "to": {
+    "table": "accounts.users",
+    "columns": [
+     "id"
+    ]
+   }
+  },
+  {
+   "from": {
+    "table": "marketing.wishlists",
+    "columns": [
+     "user_id"
+    ]
+   },
+   "to": {
+    "table": "accounts.users",
+    "columns": [
+     "id"
+    ]
+   }
+  },
+  {
+   "from": {
+    "table": "marketing.wishlists",
+    "columns": [
+     "variant_id"
+    ]
+   },
+   "to": {
+    "table": "catalog.product_variants",
+    "columns": [
+     "id"
+    ]
+   }
+  },
+  {
+   "from": {
+    "table": "marketing.newsletter_subscriptions",
+    "columns": [
+     "user_id"
+    ]
+   },
+   "to": {
+    "table": "accounts.users",
+    "columns": [
+     "id"
+    ]
+   }
+  },
+  {
+   "from": {
+    "table": "marketing.campaigns",
+    "columns": [
+     "team_id"
+    ]
+   },
+   "to": {
+    "table": "accounts.teams",
+    "columns": [
+     "id"
+    ]
+   }
+  },
+  {
+   "from": {
+    "table": "marketing.campaigns",
+    "columns": [
+     "collection_id"
+    ]
+   },
+   "to": {
+    "table": "catalog.collections",
+    "columns": [
+     "id"
+    ]
+   }
+  },
+  {
+   "from": {
+    "table": "analytics.product_views_daily",
+    "columns": [
+     "product_id"
+    ]
+   },
+   "to": {
+    "table": "catalog.products",
+    "columns": [
+     "id"
+    ]
+   }
+  },
+  {
+   "from": {
+    "table": "analytics.sales_daily",
+    "columns": [
+     "team_id"
+    ]
+   },
+   "to": {
+    "table": "accounts.teams",
+    "columns": [
+     "id"
+    ]
+   }
+  }
+ ]
+}

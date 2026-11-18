@@ -1,0 +1,1514 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Storefront schema</title>
+<style>
+  /* Страница без своего каркаса <html>/<head>/<body>: так её публикует claude.ai как артефакт, а для файла
+     каркас добавляет build_diagram.py. Вид — по Linear: нейтральный фон, тонкие рамки, один шрифт без моноширного. */
+  :root {
+    --color-background: #f4f4f5;
+    --color-surface: #ffffff;
+    --color-panel: #ffffff;
+    --color-border: #e2e2e5;
+    --color-text: #1f2023;
+    --color-text-muted: #6b6f76;
+    --color-accent: #5e6ad2;
+    --color-row-hover: #f0f0f2;
+    --shadow-overlay: 0 4px 16px rgba(0, 0, 0, 0.08);
+    --font: "Inter Variable", Inter, "SF Pro Text", system-ui, -apple-system, "Segoe UI", sans-serif;
+    --space-1: 4px;
+    --space-2: 8px;
+    --space-3: 12px;
+    --space-4: 16px;
+    /* скругления: 4 — внутри панели, 8 — панели и карточки, 12 — области; холст берёт эти же числа */
+    --radius-inner: 4px;
+    --radius-outer: 8px;
+    --radius-area: 12px;
+    --control-height: 32px;
+    --icon-size: 16px;
+    --search-width: 240px;
+    --menu-width: 264px;
+    --details-width: 360px;
+    --tip-width: 320px;
+    --minimap-width: 176px;
+    --minimap-height: 112px;
+    --bar-height: 42px;                /* высота панели с одним рядом кнопок: 32 + поля 4 + рамка 1 */
+    /* panels keep 12 from the window edge, plus the phone's safe area (notch, home bar) where there is one */
+    --edge-top: calc(var(--space-3) + env(safe-area-inset-top, 0px));
+    --edge-right: calc(var(--space-3) + env(safe-area-inset-right, 0px));
+    --edge-bottom: calc(var(--space-3) + env(safe-area-inset-bottom, 0px));
+    --edge-left: calc(var(--space-3) + env(safe-area-inset-left, 0px));
+  }
+  /* dark theme: from the system setting unless the host forces light; and again for a host that forces dark
+     (claude.ai artifacts set data-theme on the root element) */
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --color-background: #0f1011;
+      --color-surface: #161718;
+      --color-panel: #191a1b;
+      --color-border: #2a2c31;
+      --color-text: #f7f8f8;
+      --color-text-muted: #8a8f98;
+      --color-accent: #7170ff;
+      --color-row-hover: #232326;
+      --shadow-overlay: 0 4px 16px rgba(0, 0, 0, 0.4);
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --color-background: #0f1011;
+    --color-surface: #161718;
+    --color-panel: #191a1b;
+    --color-border: #2a2c31;
+    --color-text: #f7f8f8;
+    --color-text-muted: #8a8f98;
+    --color-accent: #7170ff;
+    --color-row-hover: #232326;
+    --shadow-overlay: 0 4px 16px rgba(0, 0, 0, 0.4);
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html, body { height: 100%; }
+  body {
+    margin: 0;
+    overflow: hidden;
+    background: var(--color-background);
+    color: var(--color-text);
+    font: 13px/20px var(--font);
+    -webkit-font-smoothing: antialiased;
+  }
+  /* главный холст — на всё окно; у мини-карты свой холст и свои правила */
+  #canvas { position: fixed; inset: 0; display: block; width: 100%; height: 100%; touch-action: none; cursor: grab; }
+  #canvas.over-table { cursor: pointer; }
+  #canvas.panning { cursor: grabbing; }
+  .panel {
+    position: fixed;
+    padding: var(--space-1);
+    background: var(--color-panel);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-outer);
+    box-shadow: var(--shadow-overlay);                /* панели лежат поверх холста */
+  }
+  #top-left { position: fixed; top: var(--edge-top); left: var(--edge-left); display: flex; align-items: flex-start; gap: var(--space-2); }
+  #top-left .panel { position: static; }
+  #diagram-panel, #status-panel, #mode-panel { max-width: var(--menu-width); }
+  /* подсказка клавиши; шрифт тот же, без моноширного */
+  .shortcut {
+    flex: none; min-width: var(--icon-size); padding: 0 var(--space-1); border: 1px solid var(--color-border); border-radius: var(--radius-inner);
+    font-size: 12px; line-height: 16px; text-align: center; color: var(--color-text-muted);
+  }
+  .search-row:focus-within .shortcut, .search-row:has(input:not(:placeholder-shown)) .shortcut { display: none; }
+  @media (hover: none) { .shortcut { display: none; } }   /* на телефоне клавиатуры нет — подсказка лишняя */
+  #search-panel { top: var(--edge-top); right: var(--edge-right); width: var(--search-width); }
+  #zoom-panel { right: var(--edge-right); bottom: var(--edge-bottom); display: flex; gap: var(--space-1); }
+  .control {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    height: var(--control-height);
+    padding: 0 var(--space-2);
+    border: 0;
+    border-radius: var(--radius-inner);
+    background: none;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    text-decoration: none;
+    cursor: pointer;
+  }
+  /* Строка списка — на всю ширину и с подложкой под курсором. Кнопка на самой панели — по содержимому и меняет
+     только цвет: панель с кнопками остаётся одним сплошным элементом. */
+  li > .control, .trigger { width: 100%; }
+  li > .control:hover, .control[aria-current] { background: var(--color-row-hover); }
+  .square, .quiet { color: var(--color-text-muted); }
+  .control:hover, .control:hover .chevron { color: var(--color-text); }
+  .control:focus-visible { outline: 2px solid var(--color-accent); outline-offset: -2px; }
+  .square { width: var(--control-height); justify-content: center; padding: 0; }
+  /* у поиска фокус показывает вся панель: поле внутри своей рамки не рисует */
+  #search-panel:focus-within { border-color: var(--color-accent); box-shadow: 0 0 0 1px var(--color-accent), var(--shadow-overlay); }
+  /* мини-карта: вся диаграмма и рамка окна; нажатие переносит туда вид */
+  #minimap-panel { left: var(--edge-left); bottom: var(--edge-bottom); }
+  @media (max-height: 559px) { #minimap-panel { display: none; } }   /* в низком окне она закрывала бы таблицы */
+  #minimap { display: block; width: var(--minimap-width); height: var(--minimap-height); border-radius: var(--radius-inner); cursor: pointer; touch-action: none; }
+  .icon { flex: none; width: var(--icon-size); height: var(--icon-size); }
+  .search-row { display: flex; align-items: center; gap: var(--space-2); padding: 0 var(--space-2); color: var(--color-text-muted); }
+  .search-row input { padding-left: 0; color: var(--color-text); }
+  .secondary {
+    flex: none; max-width: 50%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    color: var(--color-text-muted); font-variant-numeric: tabular-nums;
+  }
+  .label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .chevron { flex: none; width: var(--icon-size); height: var(--icon-size); color: var(--color-text-muted); }
+  ul { margin: var(--space-1) 0 0; padding: 0; list-style: none; }
+  input {
+    width: 100%;
+    height: var(--control-height);
+    padding: 0 var(--space-2);
+    border: 0;
+    border-radius: var(--radius-inner);
+    background: none;
+    color: inherit;
+    font: inherit;
+    outline: none;                                    /* фокус показывает панель вокруг поля (:focus-within), не само поле */
+  }
+  input::placeholder { color: var(--color-text-muted); }
+  .empty { margin: 0; padding: 0 var(--space-2); line-height: var(--control-height); color: var(--color-text-muted); }
+  /* Панель описания таблицы — боковая колонка, как свойства задачи в Linear: занимает правый край на всю высоту
+     и сдвигает схему, а не ложится поверх неё. Поиск и масштаб уходят влево от колонки. В узком окне — снизу. */
+  #details {
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: var(--details-width);
+    display: flex;
+    flex-direction: column;
+    padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px) 0;
+    border: 0;
+    border-left: 1px solid var(--color-border);
+    border-radius: 0;
+    box-shadow: none;
+  }
+  @media (min-width: 720px) {
+    /* открыта ли колонка — CSS читает с самой колонки (атрибут hidden), отдельного флага нет.
+       У холста своя ширина в пикселях: «auto» её не растягивает, поэтому ширина задана явно. */
+    body:has(#details:not([hidden])) #canvas { width: calc(100% - var(--details-width)); }
+    body:has(#details:not([hidden])) :is(#search-panel, #zoom-panel) { right: calc(var(--details-width) + var(--space-3)); }
+  }
+  @media (max-width: 719px) {
+    #details {
+      top: auto; left: var(--edge-left); right: var(--edge-right); bottom: var(--edge-bottom); width: auto; max-height: 50%;
+      padding: 0; border: 1px solid var(--color-border); border-radius: var(--radius-outer); box-shadow: var(--shadow-overlay);
+    }
+    /* в узком окне поиск — вторым рядом во всю ширину, чтобы не закрывал выбор диаграммы и статуса */
+    #search-panel { top: calc(var(--edge-top) + var(--bar-height) + var(--space-2)); left: var(--edge-left); width: auto; }
+    #top-left { right: var(--edge-right); }            /* панели делят ряд; длинные названия режутся многоточием */
+    #top-left .panel { min-width: 0; }
+    #minimap-panel { display: none; }                  /* на телефоне мини-карте нет места рядом с описанием */
+  }
+  #details-top { flex: none; display: flex; align-items: center; gap: var(--space-2); padding: var(--space-1) var(--space-1) var(--space-1) var(--space-4); }
+  #details-top .square { flex: none; }
+  #details-body { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 0 var(--space-4) var(--space-3); overflow-wrap: anywhere; }
+  h2 { flex: 1; min-width: 0; margin: 0; font-size: 15px; line-height: 24px; font-weight: 600; overflow-wrap: anywhere; }
+  h3 { margin: var(--space-4) 0 var(--space-1); font-size: 12px; line-height: 16px; font-weight: 500; color: var(--color-text-muted); }
+  #details p { margin: 0; }
+  #details ul { margin: 0; }
+  .meta { display: flex; align-items: center; gap: var(--space-2); margin-top: var(--space-1); color: var(--color-text-muted); }
+  .muted { color: var(--color-text-muted); }
+  .column { padding: var(--space-2) 0; }
+  .column-head { display: flex; align-items: baseline; gap: var(--space-2); }
+  .column-name { flex: 1; min-width: 0; font-weight: 500; }
+  .column-name.key { font-weight: 600; }
+  .column-type { flex: none; font-size: 12px; color: var(--color-text-muted); }
+  .small { font-size: 12px; line-height: 16px; }
+  .link {
+    display: block;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--color-accent);
+    font: inherit;
+    text-align: left;
+    overflow-wrap: anywhere;
+    cursor: pointer;
+  }
+  .link:hover { text-decoration: underline; }
+  .link:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
+  #details-incoming { margin: 0 calc(-1 * var(--space-2)); }
+  /* подсказка столбца на холсте */
+  #tip {
+    position: fixed;
+    max-width: var(--tip-width);
+    padding: var(--space-2) var(--space-3);
+    background: var(--color-panel);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-outer);
+    box-shadow: var(--shadow-overlay);
+    overflow-wrap: anywhere;
+    pointer-events: none;
+  }
+  #tip-name { font-weight: 600; }
+  #failure { position: fixed; inset: 0; display: grid; place-content: center; gap: var(--space-1); margin: 0; padding: var(--space-4); text-align: center; }
+  #failure-reason { color: var(--color-text-muted); }
+</style>
+</head>
+<body>
+<canvas id="canvas" role="img" data-label="canvas"></canvas>
+
+<div id="top-left">
+<nav id="diagram-panel" class="panel" data-label="diagramMenu">
+  <button id="menu-button" class="control trigger" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="menu">
+    <span id="menu-label" class="label"></span>
+    <svg class="chevron" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 6l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+  </button>
+  <ul id="menu" hidden></ul>
+</nav>
+<nav id="status-panel" class="panel" data-label="statusMenu">
+  <button id="status-button" class="control trigger" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="status-menu">
+    <span id="status-label" class="label"></span>
+    <svg class="chevron" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 6l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+  </button>
+  <ul id="status-menu" hidden></ul>
+</nav>
+<nav id="mode-panel" class="panel" data-label="modeMenu">
+  <button id="mode-button" class="control trigger" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="mode-menu">
+    <span id="mode-label" class="label"></span>
+    <svg class="chevron" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 6l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+  </button>
+  <ul id="mode-menu" hidden></ul>
+</nav>
+</div>
+
+<div id="minimap-panel" class="panel" hidden><canvas id="minimap" data-label="minimap"></canvas></div>
+
+<div id="search-panel" class="panel" role="search">
+  <div class="search-row">
+    <svg class="icon" viewBox="0 0 16 16" aria-hidden="true"><circle cx="7" cy="7" r="4.25" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M10.25 10.25L13 13" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+    <input id="search" type="search" data-placeholder="search" data-label="searchLabel" aria-keyshortcuts="/ Meta+K Control+K" autocomplete="off" spellcheck="false">
+    <kbd class="shortcut" aria-hidden="true">/</kbd>
+  </div>
+  <ul id="results" hidden></ul>
+</div>
+
+<div id="zoom-panel" class="panel" role="group" data-label="zoom">
+  <button id="zoom-out" class="control square" type="button" data-label="zoomOut"><svg class="icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 8h9" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
+  <button id="zoom-in" class="control square" type="button" data-label="zoomIn"><svg class="icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 8h9M8 3.5v9" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
+  <button id="zoom-fit" class="control quiet" type="button" data-text="fit"></button>
+</div>
+
+<aside id="details" class="panel" data-label="details" hidden>
+  <div id="details-top">
+    <h2 id="details-name"></h2>
+    <button id="details-copy" class="control square" type="button" data-label="copyLink" data-title="copyLink"><svg id="copy-link" class="icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M6.75 9.25l2.5-2.5M7.25 4.75l1-1a2.48 2.48 0 013.5 3.5l-1 1M8.75 11.25l-1 1a2.48 2.48 0 01-3.5-3.5l1-1" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg><svg id="copy-done" class="icon" viewBox="0 0 16 16" aria-hidden="true" hidden><path d="M3.5 8.25l3 3 6-6.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+    <button id="details-close" class="control square" type="button" data-label="close"><svg class="icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M4.5 4.5l7 7M11.5 4.5l-7 7" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
+  </div>
+  <div id="details-body">
+    <p id="details-title"></p>
+    <p id="details-note"></p>
+    <p id="details-meta" class="meta"></p>
+    <h3 data-text="columns"></h3>
+    <ul id="details-columns"></ul>
+    <h3 id="details-incoming-title" data-text="incoming"></h3>
+    <ul id="details-incoming"></ul>
+  </div>
+</aside>
+
+<div id="tip" role="tooltip" hidden><div id="tip-name"></div><div id="tip-note"></div></div>
+
+<p id="failure" hidden><span id="failure-text"></span><span id="failure-reason"></span></p>
+
+<script id="diagram-data" type="application/json">{"lang":"en","card":{"width":260,"head":48,"row":24,"areaTop":48,"areaPad":24,"areaGap":128},"modules":[{"code":"accounts","name":"Accounts and teams","dark":"#42e0c0","light":"#0f766e"},{"code":"catalog","name":"Catalog","dark":"#8eb7ff","light":"#2563eb"},{"code":"orders","name":"Orders and carts","dark":"#ffe374","light":"#a16207"},{"code":"payments","name":"Payments","dark":"#9ef07a","light":"#4d7c0f"},{"code":"shipping","name":"Shipping","dark":"#ff9f74","light":"#c2410c"},{"code":"support","name":"Support and returns","dark":"#c05dcf","light":"#a21caf"},{"code":"marketing","name":"Marketing and reviews","dark":"#ff6363","light":"#dc2626"},{"code":"analytics","name":"Analytics","dark":"#8a61f5","light":"#6d28d9"}],"tables":{"accounts.users":{"name":"users","slug":"accounts-users","module":"accounts","status":"same","title":"Customers and staff","note":"","columns":[["id","uuid",1,""],["email","varchar(320)",0,"Sign-in address, unique"],["full_name","text",4,""],["phone","varchar(32)",4,""],["role","text",0,"customer, staff or admin"],["created_at","timestamptz",0,""],["deleted_at","timestamptz",4,"Soft delete"]]},"accounts.sessions":{"name":"sessions","slug":"accounts-sessions","module":"accounts","status":"same","title":"Sign-in sessions","note":"","columns":[["id","uuid",1,""],["user_id","uuid",2,"",[["accounts.users","id"]]],["device","text",4,""],["expires_at","timestamptz",0,""],["created_at","timestamptz",0,""]]},"accounts.password_resets":{"name":"password_resets","slug":"accounts-password-resets","module":"accounts","status":"same","title":"Password reset links","note":"","columns":[["id","uuid",1,""],["user_id","uuid",2,"",[["accounts.users","id"]]],["token_hash","bytea",0,"Only the hash is stored"],["expires_at","timestamptz",0,""],["used_at","timestamptz",4,""]]},"accounts.teams":{"name":"teams","slug":"accounts-teams","module":"accounts","status":"same","title":"Seller teams","note":"","columns":[["id","uuid",1,""],["name","text",0,""],["owner_id","uuid",2,"",[["accounts.users","id"]]],["plan","text",0,"free, pro or business"],["created_at","timestamptz",0,""]]},"accounts.team_members":{"name":"team_members","slug":"accounts-team-members","module":"accounts","status":"same","title":"Team members","note":"","columns":[["team_id","uuid",3,"",[["accounts.teams","id"]]],["user_id","uuid",3,"",[["accounts.users","id"]]],["role","text",0,"owner, admin or editor"],["invited_at","timestamptz",0,""]]},"accounts.api_tokens":{"name":"api_tokens","slug":"accounts-api-tokens","module":"accounts","status":"new","title":"API tokens","note":"Lets sellers connect their own tools","columns":[["id","uuid",1,""],["team_id","uuid",2,"",[["accounts.teams","id"]]],["name","text",0,""],["token_hash","bytea",0,""],["last_used_at","timestamptz",4,""],["revoked_at","timestamptz",4,""]]},"accounts.audit_log":{"name":"audit_log","slug":"accounts-audit-log","module":"accounts","status":"same","title":"Audit log","note":"","columns":[["id","bigint",1,""],["actor_id","uuid",6,"",[["accounts.users","id"]]],["action","text",0,""],["subject_type","text",0,""],["subject_id","uuid",0,""],["created_at","timestamptz",0,""]]},"catalog.brands":{"name":"brands","slug":"catalog-brands","module":"catalog","status":"same","title":"Makers","note":"","columns":[["id","integer",1,""],["name","text",0,""],["slug","text",0,"Used in URLs"]]},"catalog.categories":{"name":"categories","slug":"catalog-categories","module":"catalog","status":"same","title":"Category tree","note":"","columns":[["id","integer",1,""],["parent_id","integer",6,"Empty for a top-level category",[["catalog.categories","id"]]],["name","text",0,""],["slug","text",0,""],["position","integer",0,""]]},"catalog.products":{"name":"products","slug":"catalog-products","module":"catalog","status":"changed","title":"Items for sale","note":"One product, sold in one or more variants","columns":[["id","uuid",1,""],["team_id","uuid",2,"The seller",[["accounts.teams","id"]]],["category_id","integer",2,"",[["catalog.categories","id"]]],["brand_id","integer",6,"",[["catalog.brands","id"]]],["title","text",0,""],["description","text",4,""],["status","text",0,"draft, active or archived"],["created_at","timestamptz",0,""],["updated_at","timestamptz",0,""]]},"catalog.product_variants":{"name":"product_variants","slug":"catalog-product-variants","module":"catalog","status":"same","title":"Sizes and colours","note":"","columns":[["id","uuid",1,""],["product_id","uuid",2,"",[["catalog.products","id"]]],["sku","text",0,"Seller's stock code"],["size","text",4,""],["color","text",4,""],["price","numeric(12,2)",0,""],["compare_at_price","numeric(12,2)",4,"Old price shown crossed out"],["weight_grams","integer",4,""]]},"catalog.product_images":{"name":"product_images","slug":"catalog-product-images","module":"catalog","status":"same","title":"Product photos","note":"","columns":[["product_id","uuid",3,"",[["catalog.products","id"]]],["position","integer",1,""],["url","text",0,""],["alt_text","text",4,""]]},"catalog.tags":{"name":"tags","slug":"catalog-tags","module":"catalog","status":"same","title":"Search tags","note":"","columns":[["id","integer",1,""],["name","text",0,""]]},"catalog.product_tags":{"name":"product_tags","slug":"catalog-product-tags","module":"catalog","status":"same","title":"Product tags","note":"","columns":[["product_id","uuid",3,"",[["catalog.products","id"]]],["tag_id","integer",3,"",[["catalog.tags","id"]]]]},"catalog.collections":{"name":"collections","slug":"catalog-collections","module":"catalog","status":"same","title":"Curated sets","note":"Hand-picked sets for the home page","columns":[["id","integer",1,""],["title","text",0,""],["starts_at","timestamptz",4,""],["ends_at","timestamptz",4,""]]},"catalog.collection_products":{"name":"collection_products","slug":"catalog-collection-products","module":"catalog","status":"same","title":"Products in collections","note":"","columns":[["collection_id","integer",3,"",[["catalog.collections","id"]]],["product_id","uuid",3,"",[["catalog.products","id"]]],["position","integer",0,""]]},"catalog.warehouses":{"name":"warehouses","slug":"catalog-warehouses","module":"catalog","status":"same","title":"Stock locations","note":"","columns":[["id","integer",1,""],["team_id","uuid",2,"",[["accounts.teams","id"]]],["name","text",0,""],["address_id","uuid",2,"",[["shipping.addresses","id"]]]]},"catalog.inventory_levels":{"name":"inventory_levels","slug":"catalog-inventory-levels","module":"catalog","status":"changed","title":"Stock levels","note":"","columns":[["variant_id","uuid",3,"",[["catalog.product_variants","id"]]],["warehouse_id","integer",3,"",[["catalog.warehouses","id"]]],["on_hand","integer",0,""],["reserved","integer",0,"Held by unpaid orders"]]},"orders.carts":{"name":"carts","slug":"orders-carts","module":"orders","status":"same","title":"Shopping carts","note":"","columns":[["id","uuid",1,""],["user_id","uuid",6,"Empty for a guest",[["accounts.users","id"]]],["created_at","timestamptz",0,""],["updated_at","timestamptz",0,""]]},"orders.cart_items":{"name":"cart_items","slug":"orders-cart-items","module":"orders","status":"same","title":"Cart items","note":"","columns":[["cart_id","uuid",3,"",[["orders.carts","id"]]],["variant_id","uuid",3,"",[["catalog.product_variants","id"]]],["quantity","integer",0,""]]},"orders.orders":{"name":"orders","slug":"orders-orders","module":"orders","status":"changed","title":"Customer orders","note":"One checkout with one seller","columns":[["id","uuid",1,""],["number","bigint",0,"Shown to the customer"],["user_id","uuid",2,"",[["accounts.users","id"]]],["team_id","uuid",2,"",[["accounts.teams","id"]]],["status","text",0,"placed, paid, shipped, delivered or cancelled"],["shipping_address_id","uuid",2,"",[["shipping.addresses","id"]]],["subtotal","numeric(12,2)",0,""],["discount","numeric(12,2)",0,""],["total","numeric(12,2)",0,""],["currency","char(3)",0,""],["placed_at","timestamptz",0,""]]},"orders.order_items":{"name":"order_items","slug":"orders-order-items","module":"orders","status":"same","title":"Order items","note":"","columns":[["order_id","uuid",3,"",[["orders.orders","id"]]],["variant_id","uuid",3,"",[["catalog.product_variants","id"]]],["quantity","integer",0,""],["unit_price","numeric(12,2)",0,"Price at the moment of purchase"]]},"orders.order_status_events":{"name":"order_status_events","slug":"orders-order-status-events","module":"orders","status":"same","title":"Order history","note":"","columns":[["id","bigint",1,""],["order_id","uuid",2,"",[["orders.orders","id"]]],["from_status","text",4,""],["to_status","text",0,""],["actor_id","uuid",6,"",[["accounts.users","id"]]],["created_at","timestamptz",0,""]]},"orders.discounts":{"name":"discounts","slug":"orders-discounts","module":"orders","status":"same","title":"Discount codes","note":"","columns":[["id","integer",1,""],["team_id","uuid",2,"",[["accounts.teams","id"]]],["code","text",0,""],["percent","integer",4,""],["amount","numeric(12,2)",4,""],["starts_at","timestamptz",0,""],["ends_at","timestamptz",4,""],["usage_limit","integer",4,""]]},"orders.discount_redemptions":{"name":"discount_redemptions","slug":"orders-discount-redemptions","module":"orders","status":"same","title":"Used discount codes","note":"","columns":[["discount_id","integer",3,"",[["orders.discounts","id"]]],["order_id","uuid",3,"",[["orders.orders","id"]]],["amount","numeric(12,2)",0,""]]},"orders.gift_cards":{"name":"gift_cards","slug":"orders-gift-cards","module":"orders","status":"new","title":"Gift cards","note":"","columns":[["id","uuid",1,""],["code_hash","bytea",0,""],["balance","numeric(12,2)",0,""],["currency","char(3)",0,""],["purchased_by","uuid",6,"",[["accounts.users","id"]]],["expires_at","timestamptz",4,""]]},"payments.payment_methods":{"name":"payment_methods","slug":"payments-payment-methods","module":"payments","status":"same","title":"Saved cards","note":"","columns":[["id","uuid",1,""],["user_id","uuid",2,"",[["accounts.users","id"]]],["provider","text",0,""],["provider_ref","text",0,"Token from the provider, never the card number"],["last4","char(4)",0,""],["expires_on","date",0,""]]},"payments.payments":{"name":"payments","slug":"payments-payments","module":"payments","status":"changed","title":"Card and gift card payments","note":"","columns":[["id","uuid",1,""],["order_id","uuid",2,"",[["orders.orders","id"]]],["method_id","uuid",6,"",[["payments.payment_methods","id"]]],["gift_card_id","uuid",6,"",[["orders.gift_cards","id"]]],["amount","numeric(12,2)",0,""],["status","text",0,"pending, captured or failed"],["captured_at","timestamptz",4,""]]},"payments.refunds":{"name":"refunds","slug":"payments-refunds","module":"payments","status":"same","title":"Money back","note":"","columns":[["id","uuid",1,""],["payment_id","uuid",2,"",[["payments.payments","id"]]],["return_id","uuid",6,"",[["support.returns","id"]]],["amount","numeric(12,2)",0,""],["reason","text",4,""],["created_at","timestamptz",0,""]]},"payments.invoices":{"name":"invoices","slug":"payments-invoices","module":"payments","status":"same","title":"Tax invoices","note":"","columns":[["id","uuid",1,""],["order_id","uuid",2,"",[["orders.orders","id"]]],["number","text",0,""],["issued_at","timestamptz",0,""],["pdf_url","text",4,""]]},"payments.invoice_lines":{"name":"invoice_lines","slug":"payments-invoice-lines","module":"payments","status":"same","title":"Invoice lines","note":"","columns":[["invoice_id","uuid",3,"",[["payments.invoices","id"]]],["line","integer",1,""],["description","text",0,""],["amount","numeric(12,2)",0,""],["tax_rate","numeric(5,2)",0,""]]},"payments.payouts":{"name":"payouts","slug":"payments-payouts","module":"payments","status":"new","title":"Payouts to sellers","note":"","columns":[["id","uuid",1,""],["team_id","uuid",2,"",[["accounts.teams","id"]]],["amount","numeric(12,2)",0,""],["fee","numeric(12,2)",0,"Marketplace commission"],["period_start","date",0,""],["period_end","date",0,""],["paid_at","timestamptz",4,""]]},"shipping.addresses":{"name":"addresses","slug":"shipping-addresses","module":"shipping","status":"same","title":"Delivery addresses","note":"","columns":[["id","uuid",1,""],["user_id","uuid",6,"",[["accounts.users","id"]]],["line1","text",0,""],["line2","text",4,""],["city","text",0,""],["postcode","text",0,""],["country","char(2)",0,""]]},"shipping.carriers":{"name":"carriers","slug":"shipping-carriers","module":"shipping","status":"same","title":"Delivery companies","note":"","columns":[["id","integer",1,""],["name","text",0,""],["tracking_url","text",0,"With {number} in place of the tracking number"]]},"shipping.shipping_rates":{"name":"shipping_rates","slug":"shipping-shipping-rates","module":"shipping","status":"same","title":"Shipping prices","note":"","columns":[["id","integer",1,""],["carrier_id","integer",2,"",[["shipping.carriers","id"]]],["country","char(2)",0,""],["max_weight_grams","integer",0,""],["price","numeric(12,2)",0,""]]},"shipping.shipments":{"name":"shipments","slug":"shipping-shipments","module":"shipping","status":"same","title":"Parcels","note":"","columns":[["id","uuid",1,""],["order_id","uuid",2,"",[["orders.orders","id"]]],["carrier_id","integer",2,"",[["shipping.carriers","id"]]],["tracking_number","text",4,""],["shipped_at","timestamptz",4,""],["delivered_at","timestamptz",4,""]]},"shipping.shipment_items":{"name":"shipment_items","slug":"shipping-shipment-items","module":"shipping","status":"same","title":"Items in a shipment","note":"","columns":[["shipment_id","uuid",3,"",[["shipping.shipments","id"]]],["variant_id","uuid",3,"",[["catalog.product_variants","id"]]],["quantity","integer",0,""]]},"shipping.tracking_events":{"name":"tracking_events","slug":"shipping-tracking-events","module":"shipping","status":"new","title":"Tracking events","note":"Received from the carrier","columns":[["id","bigint",1,""],["shipment_id","uuid",2,"",[["shipping.shipments","id"]]],["status","text",0,""],["location","text",4,""],["happened_at","timestamptz",0,""]]},"support.tickets":{"name":"tickets","slug":"support-tickets","module":"support","status":"same","title":"Support tickets","note":"","columns":[["id","uuid",1,""],["user_id","uuid",2,"",[["accounts.users","id"]]],["order_id","uuid",6,"",[["orders.orders","id"]]],["assignee_id","uuid",6,"",[["accounts.users","id"]]],["subject","text",0,""],["status","text",0,"open, waiting or closed"],["created_at","timestamptz",0,""]]},"support.ticket_messages":{"name":"ticket_messages","slug":"support-ticket-messages","module":"support","status":"same","title":"Ticket messages","note":"","columns":[["id","uuid",1,""],["ticket_id","uuid",2,"",[["support.tickets","id"]]],["author_id","uuid",2,"",[["accounts.users","id"]]],["body","text",0,""],["internal","boolean",0,"Seen by staff only"],["created_at","timestamptz",0,""]]},"support.returns":{"name":"returns","slug":"support-returns","module":"support","status":"new","title":"Return requests","note":"A customer sends items back","columns":[["id","uuid",1,""],["order_id","uuid",2,"",[["orders.orders","id"]]],["reason","text",0,""],["status","text",0,"requested, approved, received or refunded"],["requested_at","timestamptz",0,""]]},"support.return_items":{"name":"return_items","slug":"support-return-items","module":"support","status":"new","title":"Returned items","note":"","columns":[["return_id","uuid",3,"",[["support.returns","id"]]],["variant_id","uuid",3,"",[["catalog.product_variants","id"]]],["quantity","integer",0,""],["condition","text",4,"Checked at the warehouse"]]},"marketing.reviews":{"name":"reviews","slug":"marketing-reviews","module":"marketing","status":"same","title":"Product reviews","note":"","columns":[["id","uuid",1,""],["product_id","uuid",2,"",[["catalog.products","id"]]],["user_id","uuid",2,"",[["accounts.users","id"]]],["order_id","uuid",2,"Only buyers can review",[["orders.orders","id"]]],["rating","smallint",0,"1 to 5"],["body","text",4,""],["published_at","timestamptz",4,""]]},"marketing.review_votes":{"name":"review_votes","slug":"marketing-review-votes","module":"marketing","status":"same","title":"Helpful votes","note":"","columns":[["review_id","uuid",3,"",[["marketing.reviews","id"]]],["user_id","uuid",3,"",[["accounts.users","id"]]],["helpful","boolean",0,""]]},"marketing.wishlists":{"name":"wishlists","slug":"marketing-wishlists","module":"marketing","status":"same","title":"Saved for later","note":"","columns":[["user_id","uuid",3,"",[["accounts.users","id"]]],["variant_id","uuid",3,"",[["catalog.product_variants","id"]]],["added_at","timestamptz",0,""]]},"marketing.newsletter_subscriptions":{"name":"newsletter_subscriptions","slug":"marketing-newsletter-subscriptions","module":"marketing","status":"same","title":"Newsletter","note":"","columns":[["email","varchar(320)",1,""],["user_id","uuid",6,"",[["accounts.users","id"]]],["confirmed_at","timestamptz",4,""],["unsubscribed_at","timestamptz",4,""]]},"marketing.campaigns":{"name":"campaigns","slug":"marketing-campaigns","module":"marketing","status":"new","title":"Email campaigns","note":"","columns":[["id","uuid",1,""],["team_id","uuid",2,"",[["accounts.teams","id"]]],["subject","text",0,""],["collection_id","integer",6,"",[["catalog.collections","id"]]],["scheduled_at","timestamptz",4,""],["sent_at","timestamptz",4,""]]},"analytics.product_views_daily":{"name":"product_views_daily","slug":"analytics-product-views-daily","module":"analytics","status":"same","title":"Product views by day","note":"","columns":[["day","date",1,""],["product_id","uuid",3,"",[["catalog.products","id"]]],["views","integer",0,""],["unique_visitors","integer",0,""]]},"analytics.sales_daily":{"name":"sales_daily","slug":"analytics-sales-daily","module":"analytics","status":"same","title":"Sales by day","note":"","columns":[["day","date",1,""],["team_id","uuid",3,"",[["accounts.teams","id"]]],["orders","integer",0,""],["revenue","numeric(14,2)",0,""],["currency","char(3)",1,""]]}},"diagrams":[{"code":"overview","mode":"all","slug":"overview","name":"Storefront — overview","label":"Overview","module":null,"areas":[{"name":"Accounts and teams","module":"accounts","x":0,"y":0,"w":632,"h":840,"count":7},{"name":"Catalog","module":"catalog","x":760,"y":0,"w":956,"h":840,"count":11},{"name":"Orders and carts","module":"orders","x":1844,"y":0,"w":956,"h":840,"count":8},{"name":"Payments","module":"payments","x":0,"y":968,"w":632,"h":712,"count":6},{"name":"Shipping","module":"shipping","x":760,"y":968,"w":632,"h":712,"count":6},{"name":"Support and returns","module":"support","x":1520,"y":968,"w":632,"h":712,"count":4},{"name":"Marketing and reviews","module":"marketing","x":2280,"y":968,"w":632,"h":712,"count":5},{"name":"Analytics","module":"analytics","x":3040,"y":968,"w":308,"h":712,"count":2}],"tables":[{"id":"accounts.users","x":24,"y":48,"h":216},{"id":"accounts.sessions","x":24,"y":520,"h":168},{"id":"accounts.password_resets","x":348,"y":472,"h":168},{"id":"accounts.teams","x":348,"y":48,"h":168},{"id":"accounts.team_members","x":348,"y":672,"h":144},{"id":"accounts.api_tokens","x":348,"y":248,"h":192},{"id":"accounts.audit_log","x":24,"y":296,"h":192},{"id":"catalog.brands","x":784,"y":320,"h":120},{"id":"catalog.categories","x":1432,"y":48,"h":168},{"id":"catalog.products","x":1108,"y":48,"h":264},{"id":"catalog.product_variants","x":784,"y":48,"h":240},{"id":"catalog.product_images","x":1432,"y":600,"h":144},{"id":"catalog.tags","x":1108,"y":344,"h":96},{"id":"catalog.product_tags","x":784,"y":624,"h":96},{"id":"catalog.collections","x":1432,"y":248,"h":144},{"id":"catalog.collection_products","x":784,"y":472,"h":120},{"id":"catalog.warehouses","x":1432,"y":424,"h":144},{"id":"catalog.inventory_levels","x":1108,"y":472,"h":144},{"id":"orders.carts","x":2192,"y":48,"h":144},{"id":"orders.cart_items","x":2516,"y":320,"h":120},{"id":"orders.orders","x":1868,"y":48,"h":312},{"id":"orders.order_items","x":2192,"y":448,"h":144},{"id":"orders.order_status_events","x":2516,"y":472,"h":192},{"id":"orders.discounts","x":2516,"y":48,"h":240},{"id":"orders.discount_redemptions","x":1868,"y":392,"h":120},{"id":"orders.gift_cards","x":2192,"y":224,"h":192},{"id":"payments.payment_methods","x":348,"y":1016,"h":192},{"id":"payments.payments","x":24,"y":1216,"h":216},{"id":"payments.refunds","x":24,"y":1464,"h":192},{"id":"payments.invoices","x":24,"y":1016,"h":168},{"id":"payments.invoice_lines","x":348,"y":1240,"h":168},{"id":"payments.payouts","x":348,"y":1440,"h":216},{"id":"shipping.addresses","x":784,"y":1016,"h":216},{"id":"shipping.carriers","x":1108,"y":1016,"h":120},{"id":"shipping.shipping_rates","x":1108,"y":1392,"h":168},{"id":"shipping.shipments","x":1108,"y":1168,"h":192},{"id":"shipping.shipment_items","x":784,"y":1264,"h":120},{"id":"shipping.tracking_events","x":784,"y":1416,"h":168},{"id":"support.tickets","x":1868,"y":1016,"h":216},{"id":"support.ticket_messages","x":1868,"y":1264,"h":192},{"id":"support.returns","x":1544,"y":1016,"h":168},{"id":"support.return_items","x":1544,"y":1216,"h":144},{"id":"marketing.reviews","x":2304,"y":1016,"h":216},{"id":"marketing.review_votes","x":2304,"y":1264,"h":120},{"id":"marketing.wishlists","x":2304,"y":1416,"h":120},{"id":"marketing.newsletter_subscriptions","x":2628,"y":1240,"h":144},{"id":"marketing.campaigns","x":2628,"y":1016,"h":192},{"id":"analytics.product_views_daily","x":3064,"y":1016,"h":144},{"id":"analytics.sales_daily","x":3064,"y":1192,"h":168}],"refs":[[1,1,0,0],[2,1,0,0],[3,2,0,0],[4,0,3,0],[4,1,0,0],[5,1,3,0],[6,1,0,0],[8,1,8,0],[9,1,3,0],[9,2,8,0],[9,3,7,0],[10,1,9,0],[11,0,9,0],[13,0,9,0],[13,1,12,0],[15,0,14,0],[15,1,9,0],[16,1,3,0],[16,3,32,0],[17,0,10,0],[17,1,16,0],[18,1,0,0],[19,0,18,0],[19,1,10,0],[20,2,0,0],[20,3,3,0],[20,5,32,0],[21,0,20,0],[21,1,10,0],[22,1,20,0],[22,4,0,0],[23,1,3,0],[24,0,23,0],[24,1,20,0],[25,4,0,0],[26,1,0,0],[27,1,20,0],[27,2,26,0],[27,3,25,0],[28,1,27,0],[28,2,40,0],[29,1,20,0],[30,0,29,0],[31,1,3,0],[32,1,0,0],[34,1,33,0],[35,1,20,0],[35,2,33,0],[36,0,35,0],[36,1,10,0],[37,1,35,0],[38,1,0,0],[38,2,20,0],[38,3,0,0],[39,1,38,0],[39,2,0,0],[40,1,20,0],[41,0,40,0],[41,1,10,0],[42,1,9,0],[42,2,0,0],[42,3,20,0],[43,0,42,0],[43,1,0,0],[44,0,0,0],[44,1,10,0],[45,1,0,0],[46,1,3,0],[46,3,14,0],[47,1,9,0],[48,1,3,0]],"size":[3348,1680]},{"code":"accounts","mode":"all","slug":"accounts","name":"Storefront — Accounts and teams","label":"Accounts and teams","module":"accounts","areas":[{"name":"Accounts and teams","module":"accounts","x":0,"y":0,"w":632,"h":840,"count":7},{"name":"Catalog","module":"catalog","x":760,"y":0,"w":308,"h":248,"count":2},{"name":"Orders and carts","module":"orders","x":1196,"y":0,"w":308,"h":584,"count":5},{"name":"Payments","module":"payments","x":1632,"y":0,"w":308,"h":248,"count":2},{"name":"Shipping","module":"shipping","x":1632,"y":376,"w":308,"h":144,"count":1},{"name":"Support and returns","module":"support","x":2068,"y":0,"w":308,"h":272,"count":2},{"name":"Marketing and reviews","module":"marketing","x":2504,"y":0,"w":308,"h":560,"count":5},{"name":"Analytics","module":"analytics","x":2504,"y":688,"w":308,"h":144,"count":1}],"tables":[{"id":"accounts.users","x":24,"y":48,"h":216},{"id":"accounts.teams","x":348,"y":48,"h":168},{"id":"accounts.api_tokens","x":348,"y":248,"h":192},{"id":"accounts.audit_log","x":24,"y":296,"h":192},{"id":"accounts.password_resets","x":348,"y":472,"h":168},{"id":"accounts.sessions","x":24,"y":520,"h":168},{"id":"accounts.team_members","x":348,"y":672,"h":144},{"id":"catalog.products","x":784,"y":48,"h":72,"cols":[1]},{"id":"catalog.warehouses","x":784,"y":152,"h":72,"cols":[1]},{"id":"orders.carts","x":1220,"y":48,"h":72,"cols":[1]},{"id":"orders.discounts","x":1220,"y":152,"h":72,"cols":[1]},{"id":"orders.gift_cards","x":1220,"y":256,"h":72,"cols":[4]},{"id":"orders.order_status_events","x":1220,"y":360,"h":72,"cols":[4]},{"id":"orders.orders","x":1220,"y":464,"h":96,"cols":[2,3]},{"id":"payments.payment_methods","x":1656,"y":48,"h":72,"cols":[1]},{"id":"payments.payouts","x":1656,"y":152,"h":72,"cols":[1]},{"id":"shipping.addresses","x":1656,"y":424,"h":72,"cols":[1]},{"id":"support.ticket_messages","x":2092,"y":48,"h":72,"cols":[2]},{"id":"support.tickets","x":2092,"y":152,"h":96,"cols":[1,3]},{"id":"marketing.campaigns","x":2528,"y":48,"h":72,"cols":[1]},{"id":"marketing.newsletter_subscriptions","x":2528,"y":152,"h":72,"cols":[1]},{"id":"marketing.review_votes","x":2528,"y":256,"h":72,"cols":[1]},{"id":"marketing.reviews","x":2528,"y":360,"h":72,"cols":[2]},{"id":"marketing.wishlists","x":2528,"y":464,"h":72,"cols":[0]},{"id":"analytics.sales_daily","x":2528,"y":736,"h":72,"cols":[1]}],"refs":[[5,1,0,0],[4,1,0,0],[1,2,0,0],[6,0,1,0],[6,1,0,0],[2,1,1,0],[3,1,0,0],[7,0,1,0],[8,0,1,0],[9,0,0,0],[13,0,0,0],[13,1,1,0],[12,0,0,0],[10,0,1,0],[11,0,0,0],[14,0,0,0],[15,0,1,0],[16,0,0,0],[18,0,0,0],[18,1,0,0],[17,0,0,0],[22,0,0,0],[21,0,0,0],[23,0,0,0],[20,0,0,0],[19,0,1,0],[24,0,1,0]],"size":[2812,840]},{"code":"catalog","mode":"all","slug":"catalog","name":"Storefront — Catalog","label":"Catalog","module":"catalog","areas":[{"name":"Catalog","module":"catalog","x":0,"y":0,"w":632,"h":1120,"count":11},{"name":"Accounts and teams","module":"accounts","x":760,"y":0,"w":308,"h":144,"count":1},{"name":"Orders and carts","module":"orders","x":760,"y":272,"w":308,"h":248,"count":2},{"name":"Shipping","module":"shipping","x":760,"y":648,"w":308,"h":248,"count":2},{"name":"Support and returns","module":"support","x":1196,"y":0,"w":308,"h":144,"count":1},{"name":"Marketing and reviews","module":"marketing","x":1196,"y":272,"w":308,"h":352,"count":3},{"name":"Analytics","module":"analytics","x":1196,"y":752,"w":308,"h":144,"count":1}],"tables":[{"id":"catalog.product_variants","x":24,"y":48,"h":240},{"id":"catalog.products","x":348,"y":48,"h":264},{"id":"catalog.categories","x":24,"y":320,"h":168},{"id":"catalog.collections","x":348,"y":344,"h":144},{"id":"catalog.brands","x":24,"y":520,"h":120},{"id":"catalog.tags","x":348,"y":520,"h":96},{"id":"catalog.warehouses","x":348,"y":648,"h":144},{"id":"catalog.collection_products","x":24,"y":672,"h":120},{"id":"catalog.inventory_levels","x":24,"y":824,"h":144},{"id":"catalog.product_images","x":348,"y":824,"h":144},{"id":"catalog.product_tags","x":24,"y":1000,"h":96},{"id":"accounts.teams","x":784,"y":48,"h":72,"cols":[0]},{"id":"orders.cart_items","x":784,"y":320,"h":72,"cols":[1]},{"id":"orders.order_items","x":784,"y":424,"h":72,"cols":[1]},{"id":"shipping.addresses","x":784,"y":696,"h":72,"cols":[0]},{"id":"shipping.shipment_items","x":784,"y":800,"h":72,"cols":[1]},{"id":"support.return_items","x":1220,"y":48,"h":72,"cols":[1]},{"id":"marketing.campaigns","x":1220,"y":320,"h":72,"cols":[3]},{"id":"marketing.reviews","x":1220,"y":424,"h":72,"cols":[1]},{"id":"marketing.wishlists","x":1220,"y":528,"h":72,"cols":[1]},{"id":"analytics.product_views_daily","x":1220,"y":800,"h":72,"cols":[1]}],"refs":[[2,1,2,0],[1,1,11,0],[1,2,2,0],[1,3,4,0],[0,1,1,0],[9,0,1,0],[10,0,1,0],[10,1,5,0],[7,0,3,0],[7,1,1,0],[6,1,11,0],[6,3,14,0],[8,0,0,0],[8,1,6,0],[12,0,0,0],[13,0,0,0],[15,0,0,0],[16,0,0,0],[18,0,1,0],[19,0,0,0],[17,0,3,0],[20,0,1,0]],"size":[1504,1120]},{"code":"orders","mode":"all","slug":"orders","name":"Storefront — Orders and carts","label":"Orders and carts","module":"orders","areas":[{"name":"Orders and carts","module":"orders","x":0,"y":0,"w":632,"h":984,"count":8},{"name":"Accounts and teams","module":"accounts","x":760,"y":0,"w":308,"h":248,"count":2},{"name":"Catalog","module":"catalog","x":760,"y":376,"w":308,"h":144,"count":1},{"name":"Payments","module":"payments","x":760,"y":648,"w":308,"h":272,"count":2},{"name":"Shipping","module":"shipping","x":1196,"y":0,"w":308,"h":248,"count":2},{"name":"Support and returns","module":"support","x":1196,"y":376,"w":308,"h":248,"count":2},{"name":"Marketing and reviews","module":"marketing","x":1196,"y":752,"w":308,"h":144,"count":1}],"tables":[{"id":"orders.orders","x":24,"y":48,"h":312},{"id":"orders.carts","x":348,"y":48,"h":144},{"id":"orders.discounts","x":348,"y":224,"h":240},{"id":"orders.gift_cards","x":24,"y":392,"h":192},{"id":"orders.cart_items","x":348,"y":496,"h":120},{"id":"orders.discount_redemptions","x":24,"y":616,"h":120},{"id":"orders.order_items","x":348,"y":648,"h":144},{"id":"orders.order_status_events","x":24,"y":768,"h":192},{"id":"accounts.teams","x":784,"y":48,"h":72,"cols":[0]},{"id":"accounts.users","x":784,"y":152,"h":72,"cols":[0]},{"id":"catalog.product_variants","x":784,"y":424,"h":72,"cols":[0]},{"id":"payments.invoices","x":784,"y":696,"h":72,"cols":[1]},{"id":"payments.payments","x":784,"y":800,"h":96,"cols":[1,3]},{"id":"shipping.addresses","x":1220,"y":48,"h":72,"cols":[0]},{"id":"shipping.shipments","x":1220,"y":152,"h":72,"cols":[1]},{"id":"support.returns","x":1220,"y":424,"h":72,"cols":[1]},{"id":"support.tickets","x":1220,"y":528,"h":72,"cols":[2]},{"id":"marketing.reviews","x":1220,"y":800,"h":72,"cols":[3]}],"refs":[[1,1,9,0],[4,0,1,0],[4,1,10,0],[0,2,9,0],[0,3,8,0],[0,5,13,0],[6,0,0,0],[6,1,10,0],[7,1,0,0],[7,4,9,0],[2,1,8,0],[5,0,2,0],[5,1,0,0],[3,4,9,0],[12,0,0,0],[12,1,3,0],[11,0,0,0],[14,0,0,0],[16,0,0,0],[15,0,0,0],[17,0,0,0]],"size":[1504,984]},{"code":"payments","mode":"all","slug":"payments","name":"Storefront — Payments","label":"Payments","module":"payments","areas":[{"name":"Payments","module":"payments","x":0,"y":0,"w":632,"h":712,"count":6},{"name":"Accounts and teams","module":"accounts","x":760,"y":0,"w":308,"h":248,"count":2},{"name":"Orders and carts","module":"orders","x":760,"y":376,"w":308,"h":248,"count":2},{"name":"Support and returns","module":"support","x":1196,"y":0,"w":308,"h":144,"count":1}],"tables":[{"id":"payments.invoices","x":24,"y":48,"h":168},{"id":"payments.payment_methods","x":348,"y":48,"h":192},{"id":"payments.payments","x":24,"y":248,"h":216},{"id":"payments.invoice_lines","x":348,"y":272,"h":168},{"id":"payments.payouts","x":348,"y":472,"h":216},{"id":"payments.refunds","x":24,"y":496,"h":192},{"id":"accounts.teams","x":784,"y":48,"h":72,"cols":[0]},{"id":"accounts.users","x":784,"y":152,"h":72,"cols":[0]},{"id":"orders.gift_cards","x":784,"y":424,"h":72,"cols":[0]},{"id":"orders.orders","x":784,"y":528,"h":72,"cols":[0]},{"id":"support.returns","x":1220,"y":48,"h":72,"cols":[0]}],"refs":[[1,1,7,0],[2,1,9,0],[2,2,1,0],[2,3,8,0],[5,1,2,0],[5,2,10,0],[0,1,9,0],[3,0,0,0],[4,1,6,0]],"size":[1504,712]},{"code":"shipping","mode":"all","slug":"shipping","name":"Storefront — Shipping","label":"Shipping","module":"shipping","areas":[{"name":"Shipping","module":"shipping","x":0,"y":0,"w":632,"h":640,"count":6},{"name":"Accounts and teams","module":"accounts","x":760,"y":0,"w":308,"h":144,"count":1},{"name":"Catalog","module":"catalog","x":760,"y":272,"w":308,"h":248,"count":2},{"name":"Orders and carts","module":"orders","x":1196,"y":0,"w":308,"h":168,"count":1}],"tables":[{"id":"shipping.addresses","x":24,"y":48,"h":216},{"id":"shipping.carriers","x":348,"y":48,"h":120},{"id":"shipping.shipments","x":348,"y":200,"h":192},{"id":"shipping.shipment_items","x":24,"y":296,"h":120},{"id":"shipping.shipping_rates","x":348,"y":424,"h":168},{"id":"shipping.tracking_events","x":24,"y":448,"h":168},{"id":"accounts.users","x":784,"y":48,"h":72,"cols":[0]},{"id":"catalog.product_variants","x":784,"y":320,"h":72,"cols":[0]},{"id":"catalog.warehouses","x":784,"y":424,"h":72,"cols":[3]},{"id":"orders.orders","x":1220,"y":48,"h":96,"cols":[0,5]}],"refs":[[8,0,0,0],[9,1,0,0],[0,1,6,0],[4,1,1,0],[2,1,9,0],[2,2,1,0],[3,0,2,0],[3,1,7,0],[5,1,2,0]],"size":[1504,640]},{"code":"support","mode":"all","slug":"support","name":"Storefront — Support and returns","label":"Support and returns","module":"support","areas":[{"name":"Support and returns","module":"support","x":0,"y":0,"w":632,"h":512,"count":4},{"name":"Accounts and teams","module":"accounts","x":760,"y":0,"w":308,"h":144,"count":1},{"name":"Catalog","module":"catalog","x":760,"y":272,"w":308,"h":144,"count":1},{"name":"Orders and carts","module":"orders","x":1196,"y":0,"w":308,"h":144,"count":1},{"name":"Payments","module":"payments","x":1196,"y":272,"w":308,"h":144,"count":1}],"tables":[{"id":"support.returns","x":24,"y":48,"h":168},{"id":"support.tickets","x":348,"y":48,"h":216},{"id":"support.return_items","x":24,"y":248,"h":144},{"id":"support.ticket_messages","x":348,"y":296,"h":192},{"id":"accounts.users","x":784,"y":48,"h":72,"cols":[0]},{"id":"catalog.product_variants","x":784,"y":320,"h":72,"cols":[0]},{"id":"orders.orders","x":1220,"y":48,"h":72,"cols":[0]},{"id":"payments.refunds","x":1220,"y":320,"h":72,"cols":[2]}],"refs":[[7,0,0,0],[1,1,4,0],[1,2,6,0],[1,3,4,0],[3,1,1,0],[3,2,4,0],[0,1,6,0],[2,0,0,0],[2,1,5,0]],"size":[1504,512]},{"code":"marketing","mode":"all","slug":"marketing","name":"Storefront — Marketing and reviews","label":"Marketing and reviews","module":"marketing","areas":[{"name":"Marketing and reviews","module":"marketing","x":0,"y":0,"w":632,"h":592,"count":5},{"name":"Accounts and teams","module":"accounts","x":760,"y":0,"w":308,"h":248,"count":2},{"name":"Catalog","module":"catalog","x":1196,"y":0,"w":308,"h":352,"count":3},{"name":"Orders and carts","module":"orders","x":1632,"y":0,"w":308,"h":144,"count":1}],"tables":[{"id":"marketing.reviews","x":24,"y":48,"h":216},{"id":"marketing.campaigns","x":348,"y":48,"h":192},{"id":"marketing.newsletter_subscriptions","x":348,"y":272,"h":144},{"id":"marketing.review_votes","x":24,"y":296,"h":120},{"id":"marketing.wishlists","x":24,"y":448,"h":120},{"id":"accounts.teams","x":784,"y":48,"h":72,"cols":[0]},{"id":"accounts.users","x":784,"y":152,"h":72,"cols":[0]},{"id":"catalog.collections","x":1220,"y":48,"h":72,"cols":[0]},{"id":"catalog.product_variants","x":1220,"y":152,"h":72,"cols":[0]},{"id":"catalog.products","x":1220,"y":256,"h":72,"cols":[0]},{"id":"orders.orders","x":1656,"y":48,"h":72,"cols":[0]}],"refs":[[0,1,9,0],[0,2,6,0],[0,3,10,0],[3,0,0,0],[3,1,6,0],[4,0,6,0],[4,1,8,0],[2,1,6,0],[1,1,5,0],[1,3,7,0]],"size":[1940,592]},{"code":"analytics","mode":"all","slug":"analytics","name":"Storefront — Analytics","label":"Analytics","module":"analytics","areas":[{"name":"Analytics","module":"analytics","x":0,"y":0,"w":308,"h":416,"count":2},{"name":"Accounts and teams","module":"accounts","x":436,"y":0,"w":308,"h":144,"count":1},{"name":"Catalog","module":"catalog","x":436,"y":272,"w":308,"h":144,"count":1}],"tables":[{"id":"analytics.product_views_daily","x":24,"y":48,"h":144},{"id":"analytics.sales_daily","x":24,"y":224,"h":168},{"id":"accounts.teams","x":460,"y":48,"h":72,"cols":[0]},{"id":"catalog.products","x":460,"y":320,"h":72,"cols":[0]}],"refs":[[0,1,3,0],[1,1,2,0]],"size":[744,416]},{"code":"overview","mode":"keys","slug":"overview","name":"Storefront — overview","label":"Overview","module":null,"areas":[{"name":"Accounts and teams","module":"accounts","x":0,"y":0,"w":956,"h":448,"count":7},{"name":"Catalog","module":"catalog","x":1084,"y":0,"w":1280,"h":448,"count":11},{"name":"Orders and carts","module":"orders","x":0,"y":576,"w":1280,"h":368,"count":8},{"name":"Payments","module":"payments","x":1408,"y":576,"w":956,"h":368,"count":6},{"name":"Shipping","module":"shipping","x":0,"y":1072,"w":956,"h":448,"count":6},{"name":"Support and returns","module":"support","x":1084,"y":1072,"w":632,"h":448,"count":4},{"name":"Marketing and reviews","module":"marketing","x":1844,"y":1072,"w":632,"h":448,"count":5},{"name":"Analytics","module":"analytics","x":2604,"y":1072,"w":308,"h":448,"count":2}],"tables":[{"id":"accounts.users","x":24,"y":48,"h":72,"cols":[0]},{"id":"accounts.sessions","x":672,"y":176,"h":96,"cols":[0,1]},{"id":"accounts.password_resets","x":348,"y":176,"h":96,"cols":[0,1]},{"id":"accounts.teams","x":348,"y":48,"h":96,"cols":[0,2]},{"id":"accounts.team_members","x":24,"y":280,"h":96,"cols":[0,1]},{"id":"accounts.api_tokens","x":672,"y":48,"h":96,"cols":[0,1]},{"id":"accounts.audit_log","x":24,"y":152,"h":96,"cols":[0,1]},{"id":"catalog.brands","x":2080,"y":152,"h":72,"cols":[0]},{"id":"catalog.categories","x":1756,"y":48,"h":96,"cols":[0,1]},{"id":"catalog.products","x":1432,"y":48,"h":144,"cols":[0,1,2,3]},{"id":"catalog.product_variants","x":1108,"y":48,"h":96,"cols":[0,1]},{"id":"catalog.product_images","x":1108,"y":280,"h":96,"cols":[0,1]},{"id":"catalog.tags","x":1108,"y":176,"h":72,"cols":[0]},{"id":"catalog.product_tags","x":1756,"y":328,"h":96},{"id":"catalog.collections","x":2080,"y":48,"h":72,"cols":[0]},{"id":"catalog.collection_products","x":1432,"y":224,"h":96,"cols":[0,1]},{"id":"catalog.warehouses","x":1756,"y":176,"h":120,"cols":[0,1,3]},{"id":"catalog.inventory_levels","x":2080,"y":256,"h":96,"cols":[0,1]},{"id":"orders.carts","x":348,"y":624,"h":96,"cols":[0,1]},{"id":"orders.cart_items","x":348,"y":752,"h":96,"cols":[0,1]},{"id":"orders.orders","x":24,"y":624,"h":144,"cols":[0,2,3,5]},{"id":"orders.order_items","x":996,"y":752,"h":96,"cols":[0,1]},{"id":"orders.order_status_events","x":24,"y":800,"h":120,"cols":[0,1,4]},{"id":"orders.discounts","x":672,"y":624,"h":96,"cols":[0,1]},{"id":"orders.discount_redemptions","x":672,"y":752,"h":96,"cols":[0,1]},{"id":"orders.gift_cards","x":996,"y":624,"h":96,"cols":[0,4]},{"id":"payments.payment_methods","x":1756,"y":624,"h":96,"cols":[0,1]},{"id":"payments.payments","x":2080,"y":624,"h":144,"cols":[0,1,2,3]},{"id":"payments.refunds","x":2080,"y":800,"h":120,"cols":[0,1,2]},{"id":"payments.invoices","x":1432,"y":624,"h":96,"cols":[0,1]},{"id":"payments.invoice_lines","x":1432,"y":752,"h":96,"cols":[0,1]},{"id":"payments.payouts","x":1756,"y":752,"h":96,"cols":[0,1]},{"id":"shipping.addresses","x":24,"y":1120,"h":96,"cols":[0,1]},{"id":"shipping.carriers","x":348,"y":1120,"h":72,"cols":[0]},{"id":"shipping.shipping_rates","x":24,"y":1248,"h":96,"cols":[0,1]},{"id":"shipping.shipments","x":672,"y":1120,"h":120,"cols":[0,1,2]},{"id":"shipping.shipment_items","x":348,"y":1224,"h":96,"cols":[0,1]},{"id":"shipping.tracking_events","x":672,"y":1272,"h":96,"cols":[0,1]},{"id":"support.tickets","x":1432,"y":1120,"h":144,"cols":[0,1,2,3]},{"id":"support.ticket_messages","x":1432,"y":1296,"h":120,"cols":[0,1,2]},{"id":"support.returns","x":1108,"y":1120,"h":96,"cols":[0,1]},{"id":"support.return_items","x":1108,"y":1248,"h":96,"cols":[0,1]},{"id":"marketing.reviews","x":1868,"y":1120,"h":144,"cols":[0,1,2,3]},{"id":"marketing.review_votes","x":1868,"y":1296,"h":96,"cols":[0,1]},{"id":"marketing.wishlists","x":2192,"y":1400,"h":96,"cols":[0,1]},{"id":"marketing.newsletter_subscriptions","x":2192,"y":1272,"h":96,"cols":[0,1]},{"id":"marketing.campaigns","x":2192,"y":1120,"h":120,"cols":[0,1,3]},{"id":"analytics.product_views_daily","x":2628,"y":1120,"h":96,"cols":[0,1]},{"id":"analytics.sales_daily","x":2628,"y":1248,"h":120,"cols":[0,1,4]}],"refs":[[1,1,0,0],[2,1,0,0],[3,1,0,0],[4,0,3,0],[4,1,0,0],[5,1,3,0],[6,1,0,0],[8,1,8,0],[9,1,3,0],[9,2,8,0],[9,3,7,0],[10,1,9,0],[11,0,9,0],[13,0,9,0],[13,1,12,0],[15,0,14,0],[15,1,9,0],[16,1,3,0],[16,2,32,0],[17,0,10,0],[17,1,16,0],[18,1,0,0],[19,0,18,0],[19,1,10,0],[20,1,0,0],[20,2,3,0],[20,3,32,0],[21,0,20,0],[21,1,10,0],[22,1,20,0],[22,2,0,0],[23,1,3,0],[24,0,23,0],[24,1,20,0],[25,1,0,0],[26,1,0,0],[27,1,20,0],[27,2,26,0],[27,3,25,0],[28,1,27,0],[28,2,40,0],[29,1,20,0],[30,0,29,0],[31,1,3,0],[32,1,0,0],[34,1,33,0],[35,1,20,0],[35,2,33,0],[36,0,35,0],[36,1,10,0],[37,1,35,0],[38,1,0,0],[38,2,20,0],[38,3,0,0],[39,1,38,0],[39,2,0,0],[40,1,20,0],[41,0,40,0],[41,1,10,0],[42,1,9,0],[42,2,0,0],[42,3,20,0],[43,0,42,0],[43,1,0,0],[44,0,0,0],[44,1,10,0],[45,1,0,0],[46,1,3,0],[46,2,14,0],[47,1,9,0],[48,1,3,0]],"size":[2912,1520]},{"code":"accounts","mode":"keys","slug":"accounts","name":"Storefront — Accounts and teams","label":"Accounts and teams","module":"accounts","areas":[{"name":"Accounts and teams","module":"accounts","x":0,"y":0,"w":308,"h":912,"count":7},{"name":"Catalog","module":"catalog","x":436,"y":0,"w":308,"h":248,"count":2},{"name":"Orders and carts","module":"orders","x":872,"y":0,"w":308,"h":584,"count":5},{"name":"Payments","module":"payments","x":1308,"y":0,"w":308,"h":248,"count":2},{"name":"Shipping","module":"shipping","x":1308,"y":376,"w":308,"h":144,"count":1},{"name":"Support and returns","module":"support","x":1744,"y":0,"w":308,"h":272,"count":2},{"name":"Marketing and reviews","module":"marketing","x":2180,"y":0,"w":308,"h":560,"count":5},{"name":"Analytics","module":"analytics","x":2180,"y":688,"w":308,"h":144,"count":1}],"tables":[{"id":"accounts.users","x":24,"y":48,"h":72,"cols":[0]},{"id":"accounts.teams","x":24,"y":152,"h":96,"cols":[0,2]},{"id":"accounts.api_tokens","x":24,"y":280,"h":96,"cols":[0,1]},{"id":"accounts.audit_log","x":24,"y":408,"h":96,"cols":[0,1]},{"id":"accounts.password_resets","x":24,"y":536,"h":96,"cols":[0,1]},{"id":"accounts.sessions","x":24,"y":664,"h":96,"cols":[0,1]},{"id":"accounts.team_members","x":24,"y":792,"h":96,"cols":[0,1]},{"id":"catalog.products","x":460,"y":48,"h":72,"cols":[1]},{"id":"catalog.warehouses","x":460,"y":152,"h":72,"cols":[1]},{"id":"orders.carts","x":896,"y":48,"h":72,"cols":[1]},{"id":"orders.discounts","x":896,"y":152,"h":72,"cols":[1]},{"id":"orders.gift_cards","x":896,"y":256,"h":72,"cols":[4]},{"id":"orders.order_status_events","x":896,"y":360,"h":72,"cols":[4]},{"id":"orders.orders","x":896,"y":464,"h":96,"cols":[2,3]},{"id":"payments.payment_methods","x":1332,"y":48,"h":72,"cols":[1]},{"id":"payments.payouts","x":1332,"y":152,"h":72,"cols":[1]},{"id":"shipping.addresses","x":1332,"y":424,"h":72,"cols":[1]},{"id":"support.ticket_messages","x":1768,"y":48,"h":72,"cols":[2]},{"id":"support.tickets","x":1768,"y":152,"h":96,"cols":[1,3]},{"id":"marketing.campaigns","x":2204,"y":48,"h":72,"cols":[1]},{"id":"marketing.newsletter_subscriptions","x":2204,"y":152,"h":72,"cols":[1]},{"id":"marketing.review_votes","x":2204,"y":256,"h":72,"cols":[1]},{"id":"marketing.reviews","x":2204,"y":360,"h":72,"cols":[2]},{"id":"marketing.wishlists","x":2204,"y":464,"h":72,"cols":[0]},{"id":"analytics.sales_daily","x":2204,"y":736,"h":72,"cols":[1]}],"refs":[[5,1,0,0],[4,1,0,0],[1,1,0,0],[6,0,1,0],[6,1,0,0],[2,1,1,0],[3,1,0,0],[7,0,1,0],[8,0,1,0],[9,0,0,0],[13,0,0,0],[13,1,1,0],[12,0,0,0],[10,0,1,0],[11,0,0,0],[14,0,0,0],[15,0,1,0],[16,0,0,0],[18,0,0,0],[18,1,0,0],[17,0,0,0],[22,0,0,0],[21,0,0,0],[23,0,0,0],[20,0,0,0],[19,0,1,0],[24,0,1,0]],"size":[2488,912]},{"code":"catalog","mode":"keys","slug":"catalog","name":"Storefront — Catalog","label":"Catalog","module":"catalog","areas":[{"name":"Catalog","module":"catalog","x":0,"y":0,"w":632,"h":808,"count":11},{"name":"Accounts and teams","module":"accounts","x":760,"y":0,"w":308,"h":144,"count":1},{"name":"Orders and carts","module":"orders","x":760,"y":272,"w":308,"h":248,"count":2},{"name":"Shipping","module":"shipping","x":1196,"y":0,"w":308,"h":248,"count":2},{"name":"Support and returns","module":"support","x":1196,"y":376,"w":308,"h":144,"count":1},{"name":"Marketing and reviews","module":"marketing","x":1632,"y":0,"w":308,"h":352,"count":3},{"name":"Analytics","module":"analytics","x":1632,"y":480,"w":308,"h":144,"count":1}],"tables":[{"id":"catalog.product_variants","x":24,"y":48,"h":96,"cols":[0,1]},{"id":"catalog.products","x":348,"y":48,"h":144,"cols":[0,1,2,3]},{"id":"catalog.categories","x":24,"y":176,"h":96,"cols":[0,1]},{"id":"catalog.collections","x":348,"y":224,"h":72,"cols":[0]},{"id":"catalog.brands","x":24,"y":304,"h":72,"cols":[0]},{"id":"catalog.tags","x":348,"y":328,"h":72,"cols":[0]},{"id":"catalog.warehouses","x":24,"y":408,"h":120,"cols":[0,1,3]},{"id":"catalog.collection_products","x":348,"y":432,"h":96,"cols":[0,1]},{"id":"catalog.inventory_levels","x":24,"y":560,"h":96,"cols":[0,1]},{"id":"catalog.product_images","x":348,"y":560,"h":96,"cols":[0,1]},{"id":"catalog.product_tags","x":24,"y":688,"h":96},{"id":"accounts.teams","x":784,"y":48,"h":72,"cols":[0]},{"id":"orders.cart_items","x":784,"y":320,"h":72,"cols":[1]},{"id":"orders.order_items","x":784,"y":424,"h":72,"cols":[1]},{"id":"shipping.addresses","x":1220,"y":48,"h":72,"cols":[0]},{"id":"shipping.shipment_items","x":1220,"y":152,"h":72,"cols":[1]},{"id":"support.return_items","x":1220,"y":424,"h":72,"cols":[1]},{"id":"marketing.campaigns","x":1656,"y":48,"h":72,"cols":[3]},{"id":"marketing.reviews","x":1656,"y":152,"h":72,"cols":[1]},{"id":"marketing.wishlists","x":1656,"y":256,"h":72,"cols":[1]},{"id":"analytics.product_views_daily","x":1656,"y":528,"h":72,"cols":[1]}],"refs":[[2,1,2,0],[1,1,11,0],[1,2,2,0],[1,3,4,0],[0,1,1,0],[9,0,1,0],[10,0,1,0],[10,1,5,0],[7,0,3,0],[7,1,1,0],[6,1,11,0],[6,2,14,0],[8,0,0,0],[8,1,6,0],[12,0,0,0],[13,0,0,0],[15,0,0,0],[16,0,0,0],[18,0,1,0],[19,0,0,0],[17,0,3,0],[20,0,1,0]],"size":[1940,808]},{"code":"orders","mode":"keys","slug":"orders","name":"Storefront — Orders and carts","label":"Orders and carts","module":"orders","areas":[{"name":"Orders and carts","module":"orders","x":0,"y":0,"w":308,"h":1136,"count":8},{"name":"Accounts and teams","module":"accounts","x":436,"y":0,"w":308,"h":248,"count":2},{"name":"Catalog","module":"catalog","x":436,"y":376,"w":308,"h":144,"count":1},{"name":"Payments","module":"payments","x":436,"y":648,"w":308,"h":272,"count":2},{"name":"Shipping","module":"shipping","x":872,"y":0,"w":308,"h":248,"count":2},{"name":"Support and returns","module":"support","x":872,"y":376,"w":308,"h":248,"count":2},{"name":"Marketing and reviews","module":"marketing","x":872,"y":752,"w":308,"h":144,"count":1}],"tables":[{"id":"orders.orders","x":24,"y":48,"h":144,"cols":[0,2,3,5]},{"id":"orders.carts","x":24,"y":224,"h":96,"cols":[0,1]},{"id":"orders.discounts","x":24,"y":352,"h":96,"cols":[0,1]},{"id":"orders.gift_cards","x":24,"y":480,"h":96,"cols":[0,4]},{"id":"orders.cart_items","x":24,"y":608,"h":96,"cols":[0,1]},{"id":"orders.discount_redemptions","x":24,"y":736,"h":96,"cols":[0,1]},{"id":"orders.order_items","x":24,"y":864,"h":96,"cols":[0,1]},{"id":"orders.order_status_events","x":24,"y":992,"h":120,"cols":[0,1,4]},{"id":"accounts.teams","x":460,"y":48,"h":72,"cols":[0]},{"id":"accounts.users","x":460,"y":152,"h":72,"cols":[0]},{"id":"catalog.product_variants","x":460,"y":424,"h":72,"cols":[0]},{"id":"payments.invoices","x":460,"y":696,"h":72,"cols":[1]},{"id":"payments.payments","x":460,"y":800,"h":96,"cols":[1,3]},{"id":"shipping.addresses","x":896,"y":48,"h":72,"cols":[0]},{"id":"shipping.shipments","x":896,"y":152,"h":72,"cols":[1]},{"id":"support.returns","x":896,"y":424,"h":72,"cols":[1]},{"id":"support.tickets","x":896,"y":528,"h":72,"cols":[2]},{"id":"marketing.reviews","x":896,"y":800,"h":72,"cols":[3]}],"refs":[[1,1,9,0],[4,0,1,0],[4,1,10,0],[0,1,9,0],[0,2,8,0],[0,3,13,0],[6,0,0,0],[6,1,10,0],[7,1,0,0],[7,2,9,0],[2,1,8,0],[5,0,2,0],[5,1,0,0],[3,1,9,0],[12,0,0,0],[12,1,3,0],[11,0,0,0],[14,0,0,0],[16,0,0,0],[15,0,0,0],[17,0,0,0]],"size":[1180,1136]},{"code":"payments","mode":"keys","slug":"payments","name":"Storefront — Payments","label":"Payments","module":"payments","areas":[{"name":"Payments","module":"payments","x":0,"y":0,"w":308,"h":880,"count":6},{"name":"Accounts and teams","module":"accounts","x":436,"y":0,"w":308,"h":248,"count":2},{"name":"Orders and carts","module":"orders","x":436,"y":376,"w":308,"h":248,"count":2},{"name":"Support and returns","module":"support","x":872,"y":0,"w":308,"h":144,"count":1}],"tables":[{"id":"payments.invoices","x":24,"y":48,"h":96,"cols":[0,1]},{"id":"payments.payment_methods","x":24,"y":176,"h":96,"cols":[0,1]},{"id":"payments.payments","x":24,"y":304,"h":144,"cols":[0,1,2,3]},{"id":"payments.invoice_lines","x":24,"y":480,"h":96,"cols":[0,1]},{"id":"payments.payouts","x":24,"y":608,"h":96,"cols":[0,1]},{"id":"payments.refunds","x":24,"y":736,"h":120,"cols":[0,1,2]},{"id":"accounts.teams","x":460,"y":48,"h":72,"cols":[0]},{"id":"accounts.users","x":460,"y":152,"h":72,"cols":[0]},{"id":"orders.gift_cards","x":460,"y":424,"h":72,"cols":[0]},{"id":"orders.orders","x":460,"y":528,"h":72,"cols":[0]},{"id":"support.returns","x":896,"y":48,"h":72,"cols":[0]}],"refs":[[1,1,7,0],[2,1,9,0],[2,2,1,0],[2,3,8,0],[5,1,2,0],[5,2,10,0],[0,1,9,0],[3,0,0,0],[4,1,6,0]],"size":[1180,880]},{"code":"shipping","mode":"keys","slug":"shipping","name":"Storefront — Shipping","label":"Shipping","module":"shipping","areas":[{"name":"Shipping","module":"shipping","x":0,"y":0,"w":308,"h":808,"count":6},{"name":"Accounts and teams","module":"accounts","x":436,"y":0,"w":308,"h":144,"count":1},{"name":"Catalog","module":"catalog","x":436,"y":272,"w":308,"h":248,"count":2},{"name":"Orders and carts","module":"orders","x":872,"y":0,"w":308,"h":168,"count":1}],"tables":[{"id":"shipping.addresses","x":24,"y":48,"h":96,"cols":[0,1]},{"id":"shipping.carriers","x":24,"y":176,"h":72,"cols":[0]},{"id":"shipping.shipments","x":24,"y":280,"h":120,"cols":[0,1,2]},{"id":"shipping.shipment_items","x":24,"y":432,"h":96,"cols":[0,1]},{"id":"shipping.shipping_rates","x":24,"y":560,"h":96,"cols":[0,1]},{"id":"shipping.tracking_events","x":24,"y":688,"h":96,"cols":[0,1]},{"id":"accounts.users","x":460,"y":48,"h":72,"cols":[0]},{"id":"catalog.product_variants","x":460,"y":320,"h":72,"cols":[0]},{"id":"catalog.warehouses","x":460,"y":424,"h":72,"cols":[3]},{"id":"orders.orders","x":896,"y":48,"h":96,"cols":[0,5]}],"refs":[[8,0,0,0],[9,1,0,0],[0,1,6,0],[4,1,1,0],[2,1,9,0],[2,2,1,0],[3,0,2,0],[3,1,7,0],[5,1,2,0]],"size":[1180,808]},{"code":"support","mode":"keys","slug":"support","name":"Storefront — Support and returns","label":"Support and returns","module":"support","areas":[{"name":"Support and returns","module":"support","x":0,"y":0,"w":308,"h":624,"count":4},{"name":"Accounts and teams","module":"accounts","x":436,"y":0,"w":308,"h":144,"count":1},{"name":"Catalog","module":"catalog","x":436,"y":272,"w":308,"h":144,"count":1},{"name":"Orders and carts","module":"orders","x":872,"y":0,"w":308,"h":144,"count":1},{"name":"Payments","module":"payments","x":872,"y":272,"w":308,"h":144,"count":1}],"tables":[{"id":"support.returns","x":24,"y":48,"h":96,"cols":[0,1]},{"id":"support.tickets","x":24,"y":176,"h":144,"cols":[0,1,2,3]},{"id":"support.return_items","x":24,"y":352,"h":96,"cols":[0,1]},{"id":"support.ticket_messages","x":24,"y":480,"h":120,"cols":[0,1,2]},{"id":"accounts.users","x":460,"y":48,"h":72,"cols":[0]},{"id":"catalog.product_variants","x":460,"y":320,"h":72,"cols":[0]},{"id":"orders.orders","x":896,"y":48,"h":72,"cols":[0]},{"id":"payments.refunds","x":896,"y":320,"h":72,"cols":[2]}],"refs":[[7,0,0,0],[1,1,4,0],[1,2,6,0],[1,3,4,0],[3,1,1,0],[3,2,4,0],[0,1,6,0],[2,0,0,0],[2,1,5,0]],"size":[1180,624]},{"code":"marketing","mode":"keys","slug":"marketing","name":"Storefront — Marketing and reviews","label":"Marketing and reviews","module":"marketing","areas":[{"name":"Marketing and reviews","module":"marketing","x":0,"y":0,"w":308,"h":752,"count":5},{"name":"Accounts and teams","module":"accounts","x":436,"y":0,"w":308,"h":248,"count":2},{"name":"Catalog","module":"catalog","x":436,"y":376,"w":308,"h":352,"count":3},{"name":"Orders and carts","module":"orders","x":872,"y":0,"w":308,"h":144,"count":1}],"tables":[{"id":"marketing.reviews","x":24,"y":48,"h":144,"cols":[0,1,2,3]},{"id":"marketing.campaigns","x":24,"y":224,"h":120,"cols":[0,1,3]},{"id":"marketing.newsletter_subscriptions","x":24,"y":376,"h":96,"cols":[0,1]},{"id":"marketing.review_votes","x":24,"y":504,"h":96,"cols":[0,1]},{"id":"marketing.wishlists","x":24,"y":632,"h":96,"cols":[0,1]},{"id":"accounts.teams","x":460,"y":48,"h":72,"cols":[0]},{"id":"accounts.users","x":460,"y":152,"h":72,"cols":[0]},{"id":"catalog.collections","x":460,"y":424,"h":72,"cols":[0]},{"id":"catalog.product_variants","x":460,"y":528,"h":72,"cols":[0]},{"id":"catalog.products","x":460,"y":632,"h":72,"cols":[0]},{"id":"orders.orders","x":896,"y":48,"h":72,"cols":[0]}],"refs":[[0,1,9,0],[0,2,6,0],[0,3,10,0],[3,0,0,0],[3,1,6,0],[4,0,6,0],[4,1,8,0],[2,1,6,0],[1,1,5,0],[1,2,7,0]],"size":[1180,752]},{"code":"analytics","mode":"keys","slug":"analytics","name":"Storefront — Analytics","label":"Analytics","module":"analytics","areas":[{"name":"Analytics","module":"analytics","x":0,"y":0,"w":308,"h":320,"count":2},{"name":"Accounts and teams","module":"accounts","x":436,"y":0,"w":308,"h":144,"count":1},{"name":"Catalog","module":"catalog","x":872,"y":0,"w":308,"h":144,"count":1}],"tables":[{"id":"analytics.product_views_daily","x":24,"y":48,"h":96,"cols":[0,1]},{"id":"analytics.sales_daily","x":24,"y":176,"h":120,"cols":[0,1,4]},{"id":"accounts.teams","x":460,"y":48,"h":72,"cols":[0]},{"id":"catalog.products","x":896,"y":48,"h":72,"cols":[0]}],"refs":[[0,1,3,0],[1,1,2,0]],"size":[1180,320]}]}</script>
+<script>
+'use strict';
+/*
+ * Просмотрщик схемы на одном <canvas>: ни одного узла DOM на таблицу, столбец или связь.
+ * Данные встроены выше (их кладёт build_diagram.py): размеры карточки, модули с цветами, диаграммы в двух видах.
+ * Рисуется только то, что попадает в окно. Чем мельче масштаб, тем проще карточка:
+ * цветной прямоугольник → шапка с именем → полоски вместо строк → строки с текстом.
+ * Для проверок из консоли — window.__diagram.
+ */
+const PK = 1, FK = 2, NULLABLE = 4;
+// Interface strings. The language comes from the embedded data ("lang"); a new language is one more entry here.
+const STRINGS = {
+  en: {
+    canvas: 'Database diagram', diagramMenu: 'Diagram', statusMenu: 'Table status', search: 'Table',
+    searchLabel: 'Find a table', zoom: 'Zoom', zoomOut: 'Zoom out', zoomIn: 'Zoom in', fit: 'Fit',
+    details: 'Table details', copyLink: 'Copy link', copied: 'Link copied', close: 'Close',
+    columns: 'Columns', incoming: 'Referenced by', notFound: 'Not found', required: 'required',
+    allTables: 'All tables', failure: 'The diagram did not open. Reload the page.',
+    modeMenu: 'Columns shown', modeAll: 'All columns', modeKeys: 'Keys only', minimap: 'Diagram map',
+    statusLabel: { new: 'new', changed: 'changes', same: '' },                  // mark in the card header
+    statusName: { new: 'new', changed: 'changes', same: 'unchanged' },          // status in the details panel
+    statusFilter: { new: 'New', changed: 'Changing', same: 'Unchanged' },       // status menu
+  },
+  ru: {
+    canvas: 'Схема базы', diagramMenu: 'Диаграмма', statusMenu: 'Статус таблиц', search: 'Таблица',
+    searchLabel: 'Поиск таблицы', zoom: 'Масштаб', zoomOut: 'Уменьшить', zoomIn: 'Увеличить', fit: 'Весь вид',
+    details: 'Описание таблицы', copyLink: 'Скопировать ссылку', copied: 'Ссылка скопирована', close: 'Закрыть',
+    columns: 'Столбцы', incoming: 'Ссылаются сюда', notFound: 'Не найдено', required: 'обязательный',
+    allTables: 'Все таблицы', failure: 'Схема не открылась. Обновите страницу.',
+    modeMenu: 'Какие столбцы показать', modeAll: 'Все столбцы', modeKeys: 'Только ключи', minimap: 'Карта схемы',
+    statusLabel: { new: 'новая', changed: 'меняется', same: '' },
+    statusName: { new: 'новая', changed: 'меняется', same: 'без изменений' },
+    statusFilter: { new: 'Новые', changed: 'Меняются', same: 'Без изменений' },
+  },
+};
+let TEXT = STRINGS.en, STATUS_LABEL = TEXT.statusLabel, STATUS_NAME = TEXT.statusName;
+function applyStrings(lang) {                         // picks the language and fills every data-* text slot
+  if (!(lang in STRINGS)) throw new Error(`unknown interface language "${lang}"; known: ${Object.keys(STRINGS).join(', ')}`);
+  TEXT = STRINGS[lang];
+  STATUS_LABEL = TEXT.statusLabel;
+  STATUS_NAME = TEXT.statusName;
+  document.documentElement.lang = lang;
+  for (const node of document.querySelectorAll('[data-text]')) node.textContent = TEXT[node.dataset.text];
+  for (const node of document.querySelectorAll('[data-label]')) node.setAttribute('aria-label', TEXT[node.dataset.label]);
+  for (const node of document.querySelectorAll('[data-title]')) node.title = TEXT[node.dataset.title];
+  for (const node of document.querySelectorAll('[data-placeholder]')) node.placeholder = TEXT[node.dataset.placeholder];
+}
+const TIP_DELAY_MS = 300;            // подсказка столбца появляется после такой задержки
+const FONT_FAMILY = '"Inter Variable", Inter, "SF Pro Text", system-ui, -apple-system, "Segoe UI", sans-serif';   // как --font
+const TEXT_MIN_PX = 6.5;             // строки с текстом — когда буквы столбца не мельче этого на экране
+const READ_MIN_PX = 9;               // буквы, которые читаются без усилия: до них приближает двойное нажатие
+const GESTURE_REST_MS = 120;         // столько тишины после сдвига или масштаба — и жест считается законченным
+const KEEP_IN_VIEW = 0.2;            // такая доля диаграммы всегда остаётся в окне
+const BARS_MIN_ROW_PX = 5;          // полоски вместо строк — когда строка не ниже этого
+const NAME_MIN_CARD_PX = 64;         // имя в шапке — когда карточка не уже этого
+const SMALL_NAME_PX = 9;             // размер этого имени на экране, пока строки без текста
+const AREA_FONT_PX = 13;           // название модуля — постоянного размера на экране
+const AREA_LABEL_MIN_PX = 40;        // у области уже этого на экране подписи нет
+// место под панели сверху и верх диаграммы на общем виде (ещё строка подписей областей): меряется по самим
+// панелям в resize(), а не повторяет их высоты числами
+let topInset = 0, fitTop = 0;
+const BOTTOM_INSET = 64;             // место под кнопки масштаба снизу
+const EDGE_INSET = 24;
+const ZOOM_MAX = 2.5;
+const ZOOM_STEP = 1.4;
+const CLICK_SLOP_PX = 4;
+const RESULTS_LIMIT = 8;
+const DIM_ALPHA = 0.25;
+// Размеры — на шкале 4 / 8 / 12 / 16 / 24, как в CSS. Шрифты: 13 — имя таблицы, 12 — строки, 11 — служебное.
+const FONT = { table: 13, title: 12, status: 11, column: 12, type: 11, mark: 11 };
+const PAD_X = 12, MARK_W = 24;       // поле карточки слева и справа; колонка пометок PK / FK
+const NAME_Y = 16, TITLE_Y = 32;     // середины строк шапки: поле 8, имя 16, название 16, поле 8 — шапка 48
+const LABEL_H = 24, LABEL_PAD = 8;   // подпись области: высота и поле слева, в экранных пикселях
+
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d', { alpha: false });
+const topLeft = document.getElementById('top-left'), searchPanel = document.getElementById('search-panel');
+const view = { diagram: null, zoom: 1, tx: 0, ty: 0, width: 0, height: 0, dpr: 1, hover: -1, selected: -1,
+  hoverRow: null, status: null, mode: 'all', fitZoom: 1, fitted: true, moving: false };
+let DATA, CARD, MODULES, DIAGRAMS, DIAGRAMS_BY_SLUG, TABLES, HAS_STATUS, theme;
+
+// ---------- тема ----------
+function readTheme() {
+  const style = getComputedStyle(document.documentElement);
+  const token = (name) => style.getPropertyValue(name).trim();
+  const background = token('--color-background');
+  const [r, g, b] = [1, 3, 5].map((at) => parseInt(background.slice(at, at + 2), 16));
+  theme = {
+    dark: 0.2126 * r + 0.7152 * g + 0.0722 * b < 128,  // тёмная тема — та, где тёмный фон
+    background,
+    surface: token('--color-surface'),
+    panel: token('--color-panel'),
+    border: token('--color-border'),
+    text: token('--color-text'),
+    muted: token('--color-text-muted'),
+    accent: token('--color-accent'),
+    // скругления и размер мини-карты — из тех же токенов, что у страницы: холст не держит своих копий чисел
+    radiusCard: parseFloat(token('--radius-outer')),
+    radiusArea: parseFloat(token('--radius-area')),
+    minimap: [parseFloat(token('--minimap-width')), parseFloat(token('--minimap-height'))],
+  };
+}
+const moduleColor = (code) => (code === null ? theme.muted : MODULES.get(code)[theme.dark ? 'dark' : 'light']);
+
+// ---------- ширина текста ----------
+// Меряем тем же размером, каким рисуем: у системного шрифта ширина букв не растёт ровно с размером.
+const widthCache = new Map();
+function textWidth(text, weight, size) {
+  const key = weight + '|' + size + '|' + text;
+  let width = widthCache.get(key);
+  if (width === undefined) {
+    const font = ctx.font;                            // замер не должен менять шрифт, которым сейчас рисуют
+    ctx.font = `${weight} ${size}px ${FONT_FAMILY}`;
+    width = ctx.measureText(text).width;
+    ctx.font = font;
+    widthCache.set(key, width);
+  }
+  return width;
+}
+// Сколько первых знаков текста помещается в room (с многоточием, если не целиком): widthOf(k) — ширина первых
+// k знаков. Одна функция для имён в карточке, имён на мелком масштабе и подписей областей.
+function longestFit(length, widthOf, ellipsis, room) {
+  if (widthOf(length) <= room) return length;
+  let low = 0, high = length - 1;
+  while (low < high) {
+    const middle = (low + high + 1) >> 1;
+    if (widthOf(middle) + ellipsis <= room) low = middle; else high = middle - 1;
+  }
+  return low > 0 && widthOf(low) + ellipsis <= room ? low : 0;
+}
+function cut(text, length) {                          // первые length знаков и многоточие; пусто, если не влезло ничего
+  return length === text.length ? text : length > 0 ? text.slice(0, length).trimEnd() + '…' : '';
+}
+function fitText(text, weight, size, maxWidth) {
+  const widthOf = (k) => textWidth(text.slice(0, k), weight, size);
+  return cut(text, longestFit(text.length, widthOf, textWidth('…', weight, size), maxWidth));
+}
+
+// ---------- подготовка диаграммы: всё, что не зависит от масштаба, считается один раз ----------
+function prepare(diagram) {
+  if (diagram.ready) return;
+  const { width: W, head: HEAD, row: ROW } = CARD;
+  const count = diagram.tables.length;
+  diagram.indexById = new Map(diagram.tables.map((t, i) => [t.id, i]));
+  diagram.allIndexes = diagram.tables.map((_, i) => i);   // для мини-карты: все карточки по цветам
+  diagram.indexBySlug = new Map(diagram.tables.map((t, i) => [TABLES[t.id].slug, i]));
+  diagram.tables.forEach((t) => {
+    const base = TABLES[t.id];                        // имя, модуль, статус и столбцы — из общего списка таблиц
+    if (!base) throw new Error(`table ${t.id} is missing from the table list`);
+    t.name = base.name; t.module = base.module; t.status = base.status; t.title = base.title;
+    t.columns = t.cols ? t.cols.map((i) => base.columns[i]) : base.columns;
+    if (t.columns.includes(undefined)) throw new Error(`table ${t.id}: card shows a column it does not have`);
+    if (!(t.status in STATUS_LABEL)) throw new Error(`table ${t.name}: unknown status ${t.status}`);
+    if (t.module !== null && !MODULES.has(t.module)) throw new Error(`table ${t.name}: unknown module`);
+    t.statusText = STATUS_LABEL[t.status];
+    const statusWidth = t.statusText ? textWidth(t.statusText, 600, FONT.status) + 8 : 0;
+    t.nameFit = fitText(t.name, 600, FONT.table, W - 2 * PAD_X - statusWidth);
+    t.titleFit = fitText(t.title, 400, FONT.title, W - 2 * PAD_X);
+    t.rows = t.columns.map(([name, type, flags]) => {
+      const typeText = type + (flags & NULLABLE ? '?' : '');
+      const typeWidth = textWidth(typeText, 400, FONT.type);
+      const weight = flags & PK ? 600 : 400;
+      return {
+        name: fitText(name, weight, FONT.column, W - 2 * PAD_X - MARK_W - typeWidth - 8),
+        type: typeText,
+        mark: flags & PK ? 'PK' : flags & FK ? 'FK' : '',
+        bold: weight === 600,
+        nameBar: Math.min(name.length * 6.4, W * 0.5),
+        typeBar: Math.min(typeText.length * 5.6, W * 0.3),
+      };
+    });
+    t.smallPrefix = Float32Array.from({ length: t.name.length + 1 },   // ширина начала имени длиной k знаков
+      (_, k) => textWidth(t.name.slice(0, k), 600, SMALL_NAME_PX));
+    t.lit = new Uint8Array(count);
+    t.edges = [];
+    t.rowEdges = t.columns.map(() => []);             // связи, которые выходят из строки или входят в неё
+    t.search = (t.name + ' ' + t.title).toLowerCase();
+  });
+  diagram.tables.forEach((t, i) => { t.lit[i] = 1; });
+  // фильтр по статусу: какие таблицы видны и сколько их
+  diagram.byStatus = {};
+  for (const status in STATUS_NAME) {
+    const lit = Uint8Array.from(diagram.tables, (t) => (t.status === status ? 1 : 0));
+    diagram.byStatus[status] = { lit, count: lit.reduce((sum, value) => sum + value, 0) };
+  }
+  diagram.edges = diagram.refs.map(([a, ac, b, bc], index) => {
+    const from = diagram.tables[a], to = diagram.tables[b];
+    if (!from || !to || !from.columns[ac] || !to.columns[bc]) throw new Error('a reference points to a missing column');
+    from.lit[b] = 1; to.lit[a] = 1;
+    from.edges.push(index); to.edges.push(index);
+    from.rowEdges[ac].push(index); to.rowEdges[bc].push(index);
+    const sy = from.y + HEAD + (ac + 0.5) * ROW, ey = to.y + HEAD + (bc + 0.5) * ROW;
+    let sx, ex, sd, ed;                              // точки выхода и направление изгиба
+    if (to.x >= from.x + W) { sx = from.x + W; ex = to.x; sd = 1; ed = -1; }
+    else if (to.x + W <= from.x) { sx = from.x; ex = to.x + W; sd = -1; ed = 1; }
+    else { sx = from.x + W; ex = to.x + W; sd = 1; ed = 1; }
+    const bend = sd === ed ? 40 : Math.max(32, Math.abs(ex - sx) * 0.4);
+    const c1 = sx + sd * bend, c2 = ex + ed * bend;
+    return { a, ac, b, bc, sx, sy, ex, ey, sd, ed, c1, c2, cross: from.module !== to.module,
+      minX: Math.min(sx, ex, c1, c2), maxX: Math.max(sx, ex, c1, c2), minY: Math.min(sy, ey), maxY: Math.max(sy, ey) };
+  });
+  diagram.areas.forEach((area) => {
+    if (area.module !== null && !MODULES.has(area.module)) throw new Error(`area ${area.name}: unknown module`);
+    area.text = `${area.name} · ${area.count}`;
+    area.textWidth = textWidth(area.text, 600, AREA_FONT_PX);
+    area.namePrefix = Float32Array.from({ length: area.name.length + 1 },   // ширина начала названия длиной k знаков
+      (_, k) => textWidth(area.name.slice(0, k), 600, AREA_FONT_PX));
+  });
+  diagram.ready = true;
+}
+
+// ---------- отрисовка ----------
+const buckets = { table: [], title: [], status: [], name: [], nameBold: [], mark: [], type: [] };
+const BUCKET_STYLE = {
+  table: [600, FONT.table, 'text', 'left'], title: [400, FONT.title, 'muted', 'left'],
+  status: [600, FONT.status, 'muted', 'right'], name: [400, FONT.column, 'text', 'left'],
+  nameBold: [600, FONT.column, 'text', 'left'], mark: [600, FONT.mark, 'muted', 'left'],
+  type: [400, FONT.type, 'muted', 'right'],
+};
+const visible = [], dimmed = [], bright = [];       // карточки в окне; при выборе — приглушённые и яркие
+const placed = [];                                    // уже нарисованные подписи областей: x, y, ширина
+
+// Привязка к пикселям устройства: края прямоугольников и строки текста встают на целый пиксель — так резче
+// и дешевле рисовать. frame задаётся в начале каждого кадра.
+// Скругления кадра в единицах диаграммы: на экране как --radius-*, а когда всё мелкое — мельче вместе с масштабом.
+const frame = { scale: 1, originX: 0, originY: 0, stroke: 0, cardRadius: 0, areaRadius: 0 };
+const snap = (value) => Math.round(value * frame.scale) / frame.scale;
+// скруглённый прямоугольник; в браузерах без roundRect — прямой
+const rounded = ctx.roundRect
+  ? (x, y, w, h, r) => ctx.roundRect(x, y, w, h, r)
+  : (x, y, w, h) => ctx.rect(x, y, w, h);
+const shape = (x, y, w, h) => rounded(x, y, w, h, frame.cardRadius);
+function visibleRows(t, y0, y1) {                     // первая и последняя строка карточки, что попадают в окно по высоте
+  const { head, row } = CARD;
+  return [Math.max(0, Math.floor((y0 - t.y - head) / row)), Math.min(t.rows.length - 1, Math.floor((y1 - t.y - head) / row))];
+}
+
+function drawCards(diagram, group, alpha, level, y0, y1) {
+  if (group.length === 0) return;
+  const { width: W, head: HEAD, row: ROW } = CARD;
+  const { zoom, dpr } = view;
+  const tables = diagram.tables;
+  const shift = frame.stroke;
+  ctx.globalAlpha = alpha;
+
+  if (level === 0) {                                  // приглушённый цветной прямоугольник: светлый цвет модуля поверх фона карточки
+    ctx.fillStyle = theme.surface;
+    ctx.beginPath();
+    for (const i of group) { const t = tables[i]; ctx.rect(t.sx, t.sy, t.sw, t.sh); }
+    ctx.fill();
+    ctx.globalAlpha = alpha * 0.55;
+    for (const [color, list] of byColor(tables, group)) {
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      for (const i of list) { const t = tables[i]; ctx.rect(t.sx, t.sy, t.sw, t.sh); }
+      ctx.fill();
+    }
+    return;
+  }
+
+  ctx.fillStyle = theme.surface;                      // тело
+  ctx.beginPath();
+  for (const i of group) { const t = tables[i]; shape(t.sx, t.sy, t.sw, t.sh); }
+  ctx.fill();
+  ctx.strokeStyle = theme.border;                     // рамка и линия под шапкой — одним путём
+  ctx.lineWidth = 1 / zoom;
+  ctx.beginPath();
+  for (const i of group) {
+    const t = tables[i];
+    shape(t.sx + shift, t.sy + shift, t.sw, t.sh);
+    if (t.h > HEAD) {
+      const y = snap(t.y + HEAD) + shift;
+      ctx.moveTo(t.sx, y); ctx.lineTo(t.sx + t.sw, y);
+    }
+  }
+  ctx.stroke();
+
+  const padLeft = snap(PAD_X);
+  if (level === 2) {                                  // полоски вместо строк
+    ctx.fillStyle = theme.muted;
+    ctx.globalAlpha = alpha * 0.4;
+    ctx.beginPath();
+    const barH = Math.max(1, Math.round(ROW * 0.3 * frame.scale)) / frame.scale;
+    for (const i of group) {
+      const t = tables[i];
+      const [first, last] = visibleRows(t, y0, y1);
+      for (let r = first; r <= last; r++) {
+        const row = t.rows[r];
+        const y = snap(t.y + HEAD + (r + 0.5) * ROW - barH / 2);
+        const typeBar = snap(row.typeBar);
+        ctx.rect(t.sx + padLeft, y, snap(row.nameBar), barH);
+        ctx.rect(t.sx + t.sw - padLeft - typeBar, y, typeBar, barH);
+      }
+    }
+    ctx.fill();
+    ctx.globalAlpha = alpha;
+  }
+
+  if (level === 1 || level === 2) {                   // имя в шапке — постоянного размера на экране
+    if (W * zoom < NAME_MIN_CARD_PX) return;
+    const ellipsis = textWidth('…', 600, SMALL_NAME_PX);
+    const room = Math.floor((W - 2 * PAD_X) * zoom);
+    const padPx = Math.round(PAD_X * zoom * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const headY = (t) => Math.round((t.sy + Math.min(HEAD, t.h) / 2) * frame.scale + frame.originY) / dpr;
+    const left = (t) => (t.sx * frame.scale + frame.originX + padPx) / dpr;
+    ctx.font = `600 ${SMALL_NAME_PX}px ${FONT_FAMILY}`;
+    ctx.fillStyle = theme.text;
+    ctx.textAlign = 'left';
+    for (const i of group) {
+      const t = tables[i];
+      if (t.smallRoom !== room) {                     // обрезка считается заново, только когда изменилась ширина
+        t.smallRoom = room;
+        t.smallText = cut(t.name, longestFit(t.name.length, (k) => t.smallPrefix[k], ellipsis, room));
+      }
+      ctx.fillText(t.smallText, left(t), headY(t));
+    }
+    ctx.setTransform(frame.scale, 0, 0, frame.scale, frame.originX, frame.originY);
+    return;
+  }
+
+  for (const key in buckets) buckets[key].length = 0; // строки с текстом
+  const nameLeft = snap(PAD_X + MARK_W);
+  const nameY = (t) => snap(t.y + NAME_Y);
+  for (const i of group) {
+    const t = tables[i];
+    const right = t.sx + t.sw - padLeft;
+    if (t.y + HEAD > y0) {
+      buckets.table.push(t.nameFit, t.sx + padLeft, nameY(t));
+      if (t.statusText) buckets.status.push(t.statusText, right, nameY(t));
+      buckets.title.push(t.titleFit, t.sx + padLeft, snap(t.y + TITLE_Y));
+    }
+    const [first, last] = visibleRows(t, y0, y1);
+    for (let r = first; r <= last; r++) {
+      const row = t.rows[r];
+      const y = snap(t.y + HEAD + (r + 0.5) * ROW);
+      (row.bold ? buckets.nameBold : buckets.name).push(row.name, t.sx + nameLeft, y);
+      if (row.mark) buckets.mark.push(row.mark, t.sx + padLeft, y);
+      buckets.type.push(row.type, right, y);
+    }
+  }
+  for (const key in buckets) {
+    const list = buckets[key];
+    if (list.length === 0) continue;
+    const [weight, size, color, align] = BUCKET_STYLE[key];
+    ctx.font = `${weight} ${size}px ${FONT_FAMILY}`;
+    ctx.fillStyle = theme[color];
+    ctx.textAlign = align;
+    for (let n = 0; n < list.length; n += 3) ctx.fillText(list[n], list[n + 1], list[n + 2]);
+  }
+}
+
+// Подпись области под ширину room: название и число → без числа → название с многоточием → пусто.
+function fitAreaLabel(area, room) {
+  const widths = area.namePrefix, length = area.name.length;
+  if (area.textWidth <= room) { area.label = area.text; area.labelWidth = area.textWidth; return; }
+  if (widths[length] <= room) { area.label = area.name; area.labelWidth = widths[length]; return; }
+  const ellipsis = textWidth('…', 600, AREA_FONT_PX);
+  const kept = longestFit(length, (k) => widths[k], ellipsis, room);
+  area.label = cut(area.name, kept);
+  area.labelWidth = kept > 0 ? widths[kept] + ellipsis : 0;
+}
+
+function byColor(tables, group) {
+  const map = new Map();
+  for (const i of group) {
+    const color = moduleColor(tables[i].module);
+    if (!map.has(color)) map.set(color, []);
+    map.get(color).push(i);
+  }
+  return map;
+}
+
+function traceEdge(e) {
+  ctx.moveTo(e.sx, e.sy);
+  ctx.bezierCurveTo(e.c1, e.sy, e.c2, e.ey, e.ex, e.ey);
+}
+
+// Концы подсвеченных связей: «много» — вилка у ссылающегося столбца, «один» — черта у столбца, на который
+// ссылаются. Размер постоянный на экране (px — один пиксель экрана в единицах диаграммы).
+function edgeEnds(diagram, list, px) {
+  const fork = 8 * px, spread = 4 * px, bar = 8 * px;
+  ctx.globalAlpha = 1;
+  ctx.strokeStyle = theme.accent;
+  ctx.lineWidth = 1.5 * px;
+  ctx.beginPath();
+  for (const index of list) {
+    const e = diagram.edges[index];
+    const tip = e.sx + e.sd * fork;                   // вилка: две линии от точки в промежутке к краю карточки
+    ctx.moveTo(tip, e.sy); ctx.lineTo(e.sx, e.sy - spread);
+    ctx.moveTo(tip, e.sy); ctx.lineTo(e.sx, e.sy + spread);
+    const x = e.ex + e.ed * bar;                      // черта поперёк линии
+    ctx.moveTo(x, e.ey - spread); ctx.lineTo(x, e.ey + spread);
+  }
+  ctx.stroke();
+}
+
+// ---------- мини-карта ----------
+// Вся диаграмма в углу: области, карточки и рамка того, что сейчас в окне. Видна, только когда диаграмма
+// не помещается в окно целиком; нажатие или протяжка переносит туда середину окна.
+const minimapPanel = document.getElementById('minimap-panel');
+const minimap = document.getElementById('minimap');
+const mctx = minimap.getContext('2d');
+const map = { scale: 1, ox: 0, oy: 0 };              // единицы диаграммы → пиксели мини-карты
+const minimapLayer = document.createElement('canvas');   // неподвижная часть: области и карточки
+let minimapKey = '', minimapShown = false;            // для чего слой нарисован; видна ли карта (CSS прячет её в тесном окне)
+function drawMinimap(x0, y0, x1, y1) {
+  const diagram = view.diagram;
+  const [w, h] = diagram.size;
+  const whole = x0 <= 0 && y0 <= 0 && x1 >= w && y1 >= h;
+  if (minimapPanel.hidden !== whole) {
+    minimapPanel.hidden = whole;
+    minimapShown = !whole && minimap.clientWidth > 0;
+  }
+  if (!minimapShown) return;
+  const [cssW, cssH] = theme.minimap, dpr = view.dpr;
+  map.scale = Math.min(cssW / w, cssH / h);
+  map.ox = (cssW - w * map.scale) / 2;
+  map.oy = (cssH - h * map.scale) / 2;
+  const key = [diagram.code, diagram.mode, theme.background, dpr].join('|');
+  if (key !== minimapKey) {                           // слой рисуется заново, только когда он изменился
+    minimapKey = key;
+    minimap.width = minimapLayer.width = Math.round(cssW * dpr);
+    minimap.height = minimapLayer.height = Math.round(cssH * dpr);
+    const layer = minimapLayer.getContext('2d');
+    layer.setTransform(dpr, 0, 0, dpr, 0, 0);
+    layer.fillStyle = theme.panel;
+    layer.fillRect(0, 0, cssW, cssH);
+    layer.setTransform(dpr * map.scale, 0, 0, dpr * map.scale, dpr * map.ox, dpr * map.oy);
+    layer.globalAlpha = 0.12;
+    for (const area of diagram.areas) {
+      layer.fillStyle = moduleColor(area.module);
+      layer.fillRect(area.x, area.y, area.w, area.h);
+    }
+    layer.globalAlpha = 0.7;
+    for (const [color, list] of byColor(diagram.tables, diagram.allIndexes)) {
+      layer.fillStyle = color;
+      layer.beginPath();
+      for (const i of list) { const t = diagram.tables[i]; layer.rect(t.x, t.y, CARD.width, t.h); }
+      layer.fill();
+    }
+  }
+  mctx.setTransform(1, 0, 0, 1, 0, 0);
+  mctx.globalAlpha = 1;
+  mctx.drawImage(minimapLayer, 0, 0);
+  mctx.setTransform(dpr * map.scale, 0, 0, dpr * map.scale, dpr * map.ox, dpr * map.oy);
+  const vx = Math.max(0, x0), vy = Math.max(0, y0), vw = Math.min(w, x1) - vx, vh = Math.min(h, y1) - vy;
+  mctx.globalAlpha = 0.12;
+  mctx.fillStyle = theme.accent;
+  mctx.fillRect(vx, vy, vw, vh);
+  mctx.globalAlpha = 1;
+  mctx.strokeStyle = theme.accent;
+  mctx.lineWidth = 1.5 / map.scale;
+  mctx.strokeRect(vx, vy, vw, vh);
+}
+let minimapDrag = null;                               // рамка мини-карты на экране, пока её тянут: меряется один раз
+function minimapGo(event) {                           // середина окна — в точку мини-карты под указателем
+  const x = (event.clientX - minimapDrag.left - map.ox) / map.scale;
+  const y = (event.clientY - minimapDrag.top - map.oy) / map.scale;
+  view.fitted = false;
+  view.tx = view.width / 2 - x * view.zoom;
+  view.ty = view.height / 2 - y * view.zoom;
+  keepInView();
+  requestDraw();
+}
+minimap.addEventListener('pointerdown', (event) => {
+  if (event.button !== 0) return;
+  minimapDrag = minimap.getBoundingClientRect();
+  minimap.setPointerCapture(event.pointerId);
+  gesture();
+  minimapGo(event);
+});
+minimap.addEventListener('pointermove', (event) => { if (minimapDrag) { gesture(); minimapGo(event); } });
+minimap.addEventListener('pointerup', () => { minimapDrag = null; });
+minimap.addEventListener('pointercancel', () => { minimapDrag = null; });
+
+function draw() {
+  const { zoom, tx, ty, dpr, width, height, diagram } = view;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.globalAlpha = 1;
+  ctx.fillStyle = theme.background;
+  ctx.fillRect(0, 0, width, height);
+  if (diagram) {
+    const { width: W } = CARD;
+    const x0 = -tx / zoom, y0 = -ty / zoom, x1 = (width - tx) / zoom, y1 = (height - ty) / zoom;
+    const px = 1 / zoom;
+    // приглушает остальное выбор таблицы или фильтр по статусу (выбор главнее); наведение — одна рамка
+    const active = view.selected;
+    const lit = active >= 0 ? diagram.tables[active].lit
+      : view.status !== null ? diagram.byStatus[view.status].lit : null;
+    frame.scale = dpr * zoom;
+    frame.originX = Math.round(dpr * tx);
+    frame.originY = Math.round(dpr * ty);
+    frame.stroke = Math.round(dpr) % 2 ? 0.5 / frame.scale : 0;   // линия нечётной толщины встаёт на середину пикселя
+    frame.cardRadius = Math.min(theme.radiusCard / zoom, theme.radiusCard);  // на экране min(8, 8 × масштаб)
+    frame.areaRadius = Math.min(theme.radiusArea / zoom, theme.radiusArea);  // на экране min(12, 12 × масштаб)
+    ctx.setTransform(frame.scale, 0, 0, frame.scale, frame.originX, frame.originY);
+    ctx.textBaseline = 'middle';
+    const outline = (t, widthPx, color) => {          // рамка вокруг карточки
+      const x = snap(t.x), y = snap(t.y);
+      ctx.globalAlpha = 1;
+      ctx.strokeStyle = color;
+      ctx.lineWidth = widthPx * px;
+      ctx.beginPath();
+      shape(x, y, snap(t.x + W) - x, snap(t.y + t.h) - y);
+      ctx.stroke();
+    };
+
+    // области — полосы-группы, как колонки доски в Linear: лёгкий оттенок модуля, скругление, без рамки
+    ctx.globalAlpha = 0.07;
+    for (const area of diagram.areas) {
+      if (area.x > x1 || area.x + area.w < x0 || area.y > y1 || area.y + area.h < y0) continue;
+      const x = snap(area.x), y = snap(area.y), w = snap(area.x + area.w) - x, h = snap(area.y + area.h) - y;
+      ctx.fillStyle = moduleColor(area.module);
+      ctx.beginPath();
+      rounded(x, y, w, h, frame.areaRadius);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+
+    // в обзоре (диаграмма без своего модуля) связь между модулями видна только у выбранной таблицы:
+    // 267 таких линий на общем виде сливались в клубок
+    const crossHidden = diagram.module === null;
+    ctx.beginPath();                                  // связи, не относящиеся к выбранной таблице
+    for (const e of diagram.edges) {
+      if (crossHidden && e.cross) continue;
+      if (e.minX > x1 || e.maxX < x0 || e.minY > y1 || e.maxY < y0) continue;
+      if (active >= 0 && (e.a === active || e.b === active)) continue;
+      traceEdge(e);
+    }
+    ctx.strokeStyle = theme.muted;
+    ctx.lineWidth = px;
+    ctx.globalAlpha = lit ? 0.12 : 0.45;
+    ctx.stroke();
+
+    visible.length = 0;                               // карточки в окне
+    diagram.tables.forEach((t, i) => {
+      if (t.x > x1 || t.x + W < x0 || t.y > y1 || t.y + t.h < y0) return;
+      visible.push(i);
+      t.sx = snap(t.x); t.sy = snap(t.y);             // прямоугольник карточки на сетке пикселей — на этот кадр
+      t.sw = snap(t.x + W) - t.sx; t.sh = snap(t.y + t.h) - t.sy;
+    });
+    // уровень детализации зависит только от масштаба: смена текста на полоски во время жеста выглядела как мигание
+    const level = FONT.column * zoom >= TEXT_MIN_PX ? 3
+      : CARD.row * zoom >= BARS_MIN_ROW_PX ? 2
+      : W * zoom >= NAME_MIN_CARD_PX ? 1 : 0;
+    const chosen = active >= 0 ? diagram.tables[active] : null;
+    if (lit) {
+      dimmed.length = bright.length = 0;               // одна проходка делит видимые карточки на приглушённые и яркие
+      for (const i of visible) (lit[i] ? bright : dimmed).push(i);
+      drawCards(diagram, dimmed, DIM_ALPHA, level, y0, y1);
+      if (chosen) {                                   // связи выбранной таблицы — под ней и её соседями,
+        ctx.globalAlpha = 1;                          // чтобы линия не шла по их тексту
+        ctx.strokeStyle = theme.accent;
+        ctx.lineWidth = 1.5 * px;
+        ctx.beginPath();
+        for (const index of chosen.edges) traceEdge(diagram.edges[index]);
+        ctx.stroke();
+      }
+      drawCards(diagram, bright, 1, level, y0, y1);
+      if (chosen) {
+        edgeEnds(diagram, chosen.edges, px);
+        outline(chosen, 2, theme.accent);
+      }
+    } else {
+      drawCards(diagram, visible, 1, level, y0, y1);
+    }
+    // под курсором — только рамка; во время жеста её нет, чтобы не прыгала по карточкам
+    if (view.hover >= 0 && view.hover !== active && !view.moving) outline(diagram.tables[view.hover], 1, theme.muted);
+    // столбец под курсором (только когда строки с текстом): его строка, строки на других концах связей и сами связи
+    const row = level === 3 && !view.moving ? view.hoverRow : null;
+    if (row) {
+      const list = diagram.tables[row.index].rowEdges[row.row];
+      const tint = (index, r) => {
+        const t = diagram.tables[index];
+        ctx.fillRect(snap(t.x), snap(t.y + CARD.head + r * CARD.row), snap(t.x + W) - snap(t.x), snap(CARD.row));
+      };
+      ctx.globalAlpha = 0.12;
+      ctx.fillStyle = theme.accent;
+      tint(row.index, row.row);                       // строка под курсором — один раз, у связи — только другой конец
+      for (const index of list) {
+        const e = diagram.edges[index];
+        if (e.a === row.index && e.ac === row.row) tint(e.b, e.bc); else tint(e.a, e.ac);
+      }
+      if (list.length > 0) {
+        ctx.globalAlpha = 1;
+        ctx.strokeStyle = theme.accent;
+        ctx.lineWidth = 1.5 * px;
+        ctx.beginPath();
+        for (const index of list) traceEdge(diagram.edges[index]);
+        ctx.stroke();
+        edgeEnds(diagram, list, px);
+      }
+    }
+
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);           // названия областей — в экранных пикселях
+    ctx.globalAlpha = 1;
+    ctx.font = `600 ${AREA_FONT_PX}px ${FONT_FAMILY}`;
+    ctx.textAlign = 'left';
+    placed.length = 0;
+    // подпись внутри полосы, в её верхнем поле, когда поле не ниже подписи с отступами 4; иначе — над полосой
+    const inside = CARD.areaTop * zoom >= LABEL_H + 8;
+    const inset = inside ? Math.min(12, (CARD.areaTop * zoom - LABEL_H) / 2) : 0;
+    // текст подписи — на одной линии с левым краем карточек, как заголовок колонки
+    const insetX = inside ? Math.max(0, CARD.areaPad * zoom - LABEL_PAD) : 0;
+    for (const area of diagram.areas) {
+      const left = area.x * zoom + tx, right = (area.x + area.w) * zoom + tx;
+      const top = area.y * zoom + ty, bottom = (area.y + area.h) * zoom + ty;
+      if (left > width || right < 0 || top > height || bottom < 0) continue;
+      if (right - left < AREA_LABEL_MIN_PX) continue;
+      // подпись может занять и промежуток до соседней области (на три четверти), но не саму соседнюю область
+      const room = Math.floor(right - left - insetX + CARD.areaGap * zoom * 0.75);
+      if (area.labelRoom !== room) {                  // текст подбирается заново, только когда изменилась ширина
+        area.labelRoom = room;
+        fitAreaLabel(area, room - 2 * LABEL_PAD);
+      }
+      if (area.label === '') continue;
+      const labelW = area.labelWidth + 2 * LABEL_PAD;
+      // подпись держится у левого края области; когда область уехала влево — у края окна, пока хватает области
+      const x = Math.round(Math.max(left + insetX, Math.min(12, right - labelW)));
+      const home = inside ? top + inset : top - LABEL_H - 4;
+      const y = Math.round(Math.min(Math.max(home, topInset), Math.max(home, bottom - LABEL_H - inset)));
+      let clash = false;                              // две подписи не пересекаются: вторая тогда не рисуется
+      for (let n = 0; n < placed.length; n += 3) {
+        if (x < placed[n] + placed[n + 2] && x + labelW > placed[n] && Math.abs(y - placed[n + 1]) < LABEL_H) clash = true;
+      }
+      if (clash) continue;
+      placed.push(x, y, labelW);
+      // подложка закрывает линии связей под текстом и выглядит как то, на чём лежит: полоса или фон
+      ctx.fillStyle = theme.background;
+      ctx.fillRect(x, y, labelW, LABEL_H);
+      if (inside && y + LABEL_H <= bottom) {
+        ctx.globalAlpha = 0.07;
+        ctx.fillStyle = moduleColor(area.module);
+        ctx.fillRect(x, y, labelW, LABEL_H);
+        ctx.globalAlpha = 1;
+      }
+      const middle = y + LABEL_H / 2 + 1;
+      const textX = x + LABEL_PAD;
+      const withCount = area.label === area.text;
+      const name = withCount ? area.name : area.label;
+      ctx.fillStyle = theme.text;
+      ctx.fillText(name, textX, middle);
+      if (withCount) {
+        ctx.fillStyle = theme.muted;
+        ctx.fillText(area.text.slice(area.name.length), textX + area.namePrefix[area.name.length], middle);
+      }
+    }
+    drawMinimap(x0, y0, x1, y1);
+  }
+}
+
+let drawQueued = false;
+function requestDraw() {
+  if (drawQueued) return;
+  drawQueued = true;
+  requestAnimationFrame(() => { drawQueued = false; draw(); });
+}
+
+// Жест — сдвиг или масштаб, пока события идут подряд. Во время жеста не рисуется рамка наведения;
+// через GESTURE_REST_MS после последнего события карточка под курсором находится заново.
+let gestureTimer = 0;
+function gesture() {
+  if (!view.moving) {
+    view.moving = true;
+    hideTip();
+  }
+  clearTimeout(gestureTimer);
+  gestureTimer = setTimeout(() => {
+    view.moving = false;
+    view.hover = pointer.inside ? tableAt(pointer.x, pointer.y) : -1;   // под курсором после жеста — уже другая карточка
+    canvas.classList.toggle('over-table', view.hover >= 0);
+    if (pointer.inside) hoverAt(pointer.x, pointer.y, view.hover);
+    requestDraw();
+  }, GESTURE_REST_MS);
+}
+const pointer = { x: 0, y: 0, inside: false };        // последняя точка указателя над холстом
+
+// ---------- вид: размер, масштаб, сдвиг ----------
+function resize() {
+  view.dpr = window.devicePixelRatio || 1;
+  // холст — окно без боковой колонки описания, когда она открыта (её место CSS отдаёт ей, а не схеме)
+  view.width = canvas.clientWidth;
+  view.height = window.innerHeight;
+  canvas.width = Math.round(view.width * view.dpr);
+  canvas.height = Math.round(view.height * view.dpr);
+  // ниже всех панелей сверху (в узком окне поиск стоит вторым рядом) и ещё отступ
+  topInset = Math.max(topLeft.getBoundingClientRect().bottom, searchPanel.getBoundingClientRect().bottom) + 12;
+  fitTop = topInset + LABEL_H + 4;                    // на общем виде над областями ещё строка их подписей
+  minimapShown = !minimapPanel.hidden && minimap.clientWidth > 0;
+  if (view.diagram && view.fitted) fit();            // пока вид не трогали, он остаётся «весь вид»
+  else if (view.diagram) view.fitZoom = fitZoom();
+  draw();
+}
+function fitZoom() {
+  const [w, h] = view.diagram.size;
+  return Math.min(1, (view.width - 2 * EDGE_INSET) / w, (view.height - fitTop - BOTTOM_INSET) / h);
+}
+function fit() {
+  view.fitted = true;
+  if (view.width <= 2 * EDGE_INSET || view.height <= fitTop + BOTTOM_INSET) return;   // окно ещё без размера
+  const [w, h] = view.diagram.size;
+  view.fitZoom = view.zoom = fitZoom();
+  view.tx = (view.width - w * view.zoom) / 2;
+  view.ty = fitTop + (view.height - fitTop - BOTTOM_INSET - h * view.zoom) / 2;
+  requestDraw();
+}
+function keepInView() {                               // диаграмму нельзя увести за край окна целиком
+  const [w, h] = view.diagram.size;
+  const shownW = w * view.zoom, shownH = h * view.zoom;
+  const keepX = Math.min(shownW * KEEP_IN_VIEW, view.width / 2), keepY = Math.min(shownH * KEEP_IN_VIEW, view.height / 2);
+  view.tx = Math.min(view.width - keepX, Math.max(keepX - shownW, view.tx));
+  view.ty = Math.min(view.height - keepY, Math.max(keepY - shownH, view.ty));
+}
+function pan(dx, dy) {
+  view.fitted = false;
+  view.tx += dx;
+  view.ty += dy;
+  keepInView();
+  requestDraw();
+}
+function zoomAt(x, y, factor) {                       // масштаб к точке окна (x, y): она остаётся на месте
+  const next = Math.min(ZOOM_MAX, Math.max(view.fitZoom * 0.5, view.zoom * factor));
+  view.fitted = false;
+  view.tx = x - (x - view.tx) * (next / view.zoom);
+  view.ty = y - (y - view.ty) * (next / view.zoom);
+  view.zoom = next;
+  keepInView();
+  requestDraw();
+}
+function tableAt(x, y) {
+  if (!view.diagram) return -1;
+  const wx = (x - view.tx) / view.zoom, wy = (y - view.ty) / view.zoom;
+  const tables = view.diagram.tables;
+  for (let i = tables.length - 1; i >= 0; i--) {
+    const t = tables[i];
+    if (wx >= t.x && wx <= t.x + CARD.width && wy >= t.y && wy <= t.y + t.h) return i;
+  }
+  return -1;
+}
+function showTable(index) {
+  const t = view.diagram.tables[index];
+  select(index);
+  view.fitted = false;
+  // свободное место: колонка описания справа уже вычтена из холста; в узком окне она лежит снизу поверх схемы
+  const sheet = details.getBoundingClientRect().top > 0;
+  const freeWidth = view.width;
+  const freeHeight = view.height - (sheet ? details.offsetHeight + BOTTOM_INSET : 0);
+  // масштаб, при котором столбцы читаются; высокая таблица встаёт верхом к верху окна
+  view.zoom = Math.min(1, Math.max(READ_MIN_PX / FONT.column, (freeHeight - topInset - 2 * EDGE_INSET) / t.h));
+  view.tx = freeWidth / 2 - (t.x + CARD.width / 2) * view.zoom;
+  view.ty = topInset + (freeHeight - topInset) / 2 - (t.y + t.h / 2) * view.zoom;
+  if (t.h * view.zoom > freeHeight - topInset - EDGE_INSET) view.ty = topInset + EDGE_INSET - t.y * view.zoom;
+  requestDraw();
+}
+
+// ---------- выбор таблицы и панель описания ----------
+const details = document.getElementById('details');
+function select(index) {                              // выбор открывает панель описания, снятие выбора закрывает
+  if (index === view.selected) return;
+  view.selected = index;
+  showDetails();
+  writeAddress(false);
+  requestDraw();
+}
+
+// ---------- адрес: «#диаграмма» или «#диаграмма--таблица» — ссылка открывает диаграмму сразу на таблице ----------
+// Slugs are ASCII letters, digits and single hyphens (the build makes them): only such a plain #name survives
+// a claude.ai artifact link, and «--» never occurs inside a slug, so it separates the two parts.
+const ADDRESS_WRITABLE = location.protocol !== 'data:';   // у адреса data: менять «#…» браузер запрещает
+function address() {
+  const table = view.selected >= 0 ? TABLES[view.diagram.tables[view.selected].id] : null;
+  return '#' + view.diagram.slug + (table ? '--' + table.slug : '');
+}
+function writeAddress(push) {                         // смена диаграммы — новый шаг истории, выбор таблицы — нет
+  if (!ADDRESS_WRITABLE || location.hash === address()) return;
+  if (push) history.pushState(null, '', address()); else history.replaceState(null, '', address());
+}
+function openAddress(hash) {
+  const [diagramSlug, tableSlug] = hash.split('--');
+  const diagram = DIAGRAMS_BY_SLUG.get(diagramSlug);
+  openDiagram(diagram ? diagram.code : '');         // незнакомый адрес — первая диаграмма
+  const index = tableSlug === undefined ? undefined : view.diagram.indexBySlug.get(tableSlug);
+  if (index === undefined) select(-1); else showTable(index);   // незнакомая таблица — диаграмма без выбора
+}
+
+// ---------- ссылка на таблицу ----------
+const copyButton = document.getElementById('details-copy');
+// В адресе data: таблицы нет — копировать нечего; без доступа к буферу обмена кнопка не нужна.
+// Inside a frame (a claude.ai artifact) the page's own address is not the link people open: Share → Copy link is.
+copyButton.hidden = !ADDRESS_WRITABLE || !navigator.clipboard || window.self !== window.top;
+let copyTimer = 0;
+copyButton.addEventListener('click', () => {
+  navigator.clipboard.writeText(location.href).then(() => {
+    document.getElementById('copy-link').hidden = true;
+    document.getElementById('copy-done').hidden = false;
+    copyButton.setAttribute('aria-label', TEXT.copied);
+    clearTimeout(copyTimer);
+    copyTimer = setTimeout(() => {
+      document.getElementById('copy-link').hidden = false;
+      document.getElementById('copy-done').hidden = true;
+      copyButton.setAttribute('aria-label', TEXT.copyLink);
+    }, 1500);
+  }).catch((error) => {                               // the browser refused: show the link on the button instead
+    console.error('copy link:', error);
+    copyButton.title = location.href;
+  });
+});
+
+// ---------- меню выбора: статус таблиц и какие столбцы показать ----------
+// Одна форма для обоих: панель с кнопкой (текущий выбор) и список вариантов, у варианта может быть число.
+function picker(name, onPick) {
+  const panel = document.getElementById(`${name}-panel`);
+  const button = document.getElementById(`${name}-button`);
+  const list = document.getElementById(`${name}-menu`);
+  button.addEventListener('click', () => toggleMenu(button, list));
+  return {
+    close() { setMenuOpen(button, list, false); },
+    // choices: [{ value, label, count }] (count — число или null); visible — показывать ли панель вообще
+    show(choices, current, visible) {
+      panel.hidden = !visible;
+      document.getElementById(`${name}-label`).textContent = choices.find((c) => c.value === current).label;
+      list.replaceChildren(...choices.map(({ value, label, count }) => {
+        const row = listRow(make('button'), label, count);
+        row.type = 'button';
+        if (value === current) row.setAttribute('aria-current', 'true');
+        row.addEventListener('click', () => { closeMenu(); onPick(value); });
+        return listItem(row);
+      }));
+    },
+  };
+}
+
+// статус: таблицы с выбранным статусом видны, остальные приглушены
+const statusPicker = picker('status', (status) => { view.status = status; buildStatusMenu(); requestDraw(); });
+function buildStatusMenu() {                          // пункты — только статусы, которые есть в этой диаграмме
+  const counts = view.diagram.byStatus;
+  const names = TEXT.statusFilter;
+  const present = Object.keys(names).filter((status) => counts[status].count > 0);
+  if (view.status !== null && !present.includes(view.status)) view.status = null;
+  statusPicker.show([{ value: null, label: TEXT.allTables, count: null },
+    ...present.map((status) => ({ value: status, label: names[status], count: counts[status].count }))],
+  view.status, present.length >= 2);                  // один статус — фильтровать нечего
+}
+
+// столбцы: все или только ключи (первичный ключ и оба конца каждой связи) — у каждой диаграммы два вида
+const modePicker = picker('mode', setMode);
+function buildModeMenu() {
+  modePicker.show([{ value: 'all', label: TEXT.modeAll, count: null },
+    { value: 'keys', label: TEXT.modeKeys, count: null }], view.mode, true);
+}
+function setMode(mode) {                              // та же диаграмма в другом виде; выбранная таблица остаётся
+  if (mode === view.mode) return;
+  const selectedId = view.selected >= 0 ? view.diagram.tables[view.selected].id : null;
+  view.mode = mode;
+  buildModeMenu();
+  openDiagram(view.diagram.code);
+  if (selectedId !== null) showTable(view.diagram.indexById.get(selectedId));
+}
+function make(tag, className, text) {                 // узел страницы с классом и текстом
+  const node = document.createElement(tag);
+  if (className) node.className = className;
+  if (text !== undefined) node.textContent = text;
+  return node;
+}
+function tableLink(id, text) {                        // кнопка-ссылка на другую таблицу
+  const button = make('button', 'link', text);
+  button.type = 'button';
+  button.addEventListener('click', () => goToTable(id));
+  return button;
+}
+function showDetails() {
+  details.hidden = view.selected < 0;
+  // колонка открылась или закрылась — CSS поменял ширину холста; вид остаётся на месте, слева
+  if (canvas.clientWidth !== view.width) resize();
+  if (details.hidden) return;
+  const id = view.diagram.tables[view.selected].id;
+  const table = TABLES[id];
+  document.getElementById('details-name').textContent = table.name;
+  document.getElementById('details-title').textContent = table.title;
+  document.getElementById('details-note').textContent = table.note;
+  // the status is news only when the schema marks changes at all
+  const moduleName = MODULES.get(table.module).name;
+  document.getElementById('details-meta').textContent = HAS_STATUS ? `${moduleName} · ${STATUS_NAME[table.status]}` : moduleName;
+  const columns = document.getElementById('details-columns');
+  columns.replaceChildren();
+  for (const [name, type, flags, note, links] of table.columns) {
+    const item = make('li', 'column');
+    const head = make('div', 'column-head');
+    head.append(make('span', flags & PK ? 'column-name key' : 'column-name', name), make('span', 'column-type', type));
+    item.append(head);
+    const marks = [flags & PK ? 'PK' : '', flags & FK ? 'FK' : '', flags & NULLABLE ? '' : TEXT.required].filter(Boolean);
+    if (marks.length > 0) item.append(make('div', 'small muted', marks.join(' · ')));
+    if (note) item.append(make('div', '', note));
+    for (const [target, column] of links || []) item.append(tableLink(target, `→ ${target}.${column}`));
+    columns.append(item);
+  }
+  const incoming = document.getElementById('details-incoming');
+  incoming.replaceChildren();
+  for (const source of table.incoming) {
+    const button = listRow(make('button'), TABLES[source].name, moduleHint(TABLES[source].module, table.module));
+    button.type = 'button';
+    button.title = TABLES[source].title;
+    button.addEventListener('click', () => goToTable(source));
+    incoming.append(listItem(button));
+  }
+  document.getElementById('details-incoming-title').hidden = incoming.hidden = table.incoming.size === 0;
+  document.getElementById('details-body').scrollTop = 0;
+}
+function goToTable(id) {                              // переход к таблице: в этой диаграмме, а если её тут нет — в обзоре
+  if (!view.diagram.indexById.has(id)) switchDiagram(DATA.diagrams[0].code);
+  showTable(view.diagram.indexById.get(id));
+}
+document.getElementById('details-close').addEventListener('click', () => select(-1));
+
+// ---------- подсказка столбца ----------
+// Появляется через TIP_DELAY_MS над одной строкой и стоит у карточки, а не бежит за курсором: при движении не мигает.
+const tip = document.getElementById('tip');
+let tipKey = '', tipTimer = 0;
+function hideTip() {
+  clearTimeout(tipTimer);
+  tipKey = '';
+  tip.hidden = true;
+}
+function rowAt(x, y, index) {                         // строка столбца карточки index под точкой окна — когда текст нарисован
+  if (index < 0 || FONT.column * view.zoom < TEXT_MIN_PX) return null;
+  const t = view.diagram.tables[index];
+  const row = Math.floor(((y - view.ty) / view.zoom - t.y - CARD.head) / CARD.row);
+  return row >= 0 && row < t.columns.length ? { index, row } : null;
+}
+function updateHoverRow(hit) {                        // строка под курсором: её связи подсвечиваются
+  const old = view.hoverRow;
+  if ((hit && old && hit.index === old.index && hit.row === old.row) || (!hit && !old)) return;
+  view.hoverRow = hit;
+  requestDraw();
+}
+function updateTip(hit) {
+  const index = hit ? hit.index : -1, row = hit ? hit.row : -1;
+  const t = hit ? view.diagram.tables[index] : null;
+  const column = hit ? t.columns[row] : null;
+  const key = column && column[3] ? index + ':' + row : '';
+  if (key === tipKey) return;
+  clearTimeout(tipTimer);
+  tipKey = key;
+  if (key === '') { tip.hidden = true; return; }
+  const show = () => {
+    document.getElementById('tip-name').textContent = column[0];
+    document.getElementById('tip-note').textContent = column[3];
+    tip.hidden = false;
+    const left = t.x * view.zoom + view.tx, right = left + CARD.width * view.zoom;
+    const rowTop = (t.y + CARD.head + row * CARD.row) * view.zoom + view.ty;
+    let tipX = right + 8;                             // справа от карточки; не помещается — слева; иначе у края окна
+    if (tipX + tip.offsetWidth > view.width - 8) tipX = left - 8 - tip.offsetWidth;
+    tip.style.left = Math.max(8, Math.min(tipX, view.width - 8 - tip.offsetWidth)) + 'px';
+    tip.style.top = Math.max(8, Math.min(rowTop, view.height - 8 - tip.offsetHeight)) + 'px';
+  };
+  if (tip.hidden) tipTimer = setTimeout(show, TIP_DELAY_MS); else show();
+}
+
+function hoverAt(x, y, index) {                       // строка под курсором: подсказка и подсветка её связей
+  const hit = rowAt(x, y, index);
+  updateTip(hit);
+  updateHoverRow(hit);
+}
+
+// ---------- мышь и трекпад ----------
+let drag = null;
+canvas.addEventListener('pointerdown', (event) => {
+  if (event.button !== 0) return;
+  closeMenu();
+  hideTip();
+  canvas.setPointerCapture(event.pointerId);
+  drag = { x: event.clientX, y: event.clientY, startX: event.clientX, startY: event.clientY, moved: false };
+});
+canvas.addEventListener('pointermove', (event) => {
+  pointer.x = event.clientX; pointer.y = event.clientY; pointer.inside = true;
+  if (drag) {
+    if (!drag.moved && Math.hypot(event.clientX - drag.startX, event.clientY - drag.startY) < CLICK_SLOP_PX) return;
+    drag.moved = true;
+    canvas.classList.add('panning');
+    gesture();
+    pan(event.clientX - drag.x, event.clientY - drag.y);
+    drag.x = event.clientX; drag.y = event.clientY;
+    return;
+  }
+  const over = tableAt(event.clientX, event.clientY);
+  canvas.classList.toggle('over-table', over >= 0);
+  if (over !== view.hover) { view.hover = over; requestDraw(); }
+  if (!view.moving) hoverAt(event.clientX, event.clientY, over);
+});
+canvas.addEventListener('pointerup', (event) => {
+  if (!drag) return;
+  view.hover = tableAt(event.clientX, event.clientY);
+  if (!drag.moved) select(view.hover);                // нажатие: выбрать таблицу или снять выбор
+  requestDraw();
+  drag = null;
+  canvas.classList.remove('panning');
+});
+canvas.addEventListener('pointercancel', () => { drag = null; canvas.classList.remove('panning'); });
+canvas.addEventListener('pointerleave', () => {
+  pointer.inside = false;
+  hideTip();
+  updateHoverRow(null);
+  if (view.hover !== -1) { view.hover = -1; requestDraw(); }
+});
+canvas.addEventListener('dblclick', (event) => {      // двойное нажатие — приблизить таблицу до читаемых столбцов
+  const index = tableAt(event.clientX, event.clientY);
+  if (index >= 0) showTable(index);
+});
+canvas.addEventListener('wheel', (event) => {
+  event.preventDefault();
+  pointer.x = event.clientX; pointer.y = event.clientY; pointer.inside = true;
+  gesture();
+  const unit = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? view.height : 1;
+  if (event.ctrlKey || event.metaKey) {               // щипок на трекпаде приходит с ctrlKey; Cmd и Ctrl с колесом — то же
+    const delta = Math.max(-40, Math.min(40, event.deltaY * unit));   // колесо мыши даёт шаг 100 — ограничиваем
+    zoomAt(event.clientX, event.clientY, Math.exp(-delta * 0.01));
+  } else {
+    pan(-event.deltaX * unit, -event.deltaY * unit);
+  }
+}, { passive: false });
+let gestureZoom = 1;                                  // щипок в Safari
+canvas.addEventListener('gesturestart', (event) => { event.preventDefault(); gestureZoom = view.zoom; });
+canvas.addEventListener('gesturechange', (event) => {
+  event.preventDefault();
+  gesture();
+  zoomAt(event.clientX, event.clientY, (gestureZoom * event.scale) / view.zoom);
+});
+
+document.getElementById('zoom-in').addEventListener('click', () => zoomAt(view.width / 2, view.height / 2, ZOOM_STEP));
+document.getElementById('zoom-out').addEventListener('click', () => zoomAt(view.width / 2, view.height / 2, 1 / ZOOM_STEP));
+document.getElementById('zoom-fit').addEventListener('click', fit);
+
+// ---------- выбор диаграммы ----------
+const menuButton = document.getElementById('menu-button');
+const menu = document.getElementById('menu');
+function setMenuOpen(button, list, open) {
+  list.hidden = !open;
+  button.setAttribute('aria-expanded', String(open));
+}
+function toggleMenu(button, list) {                   // открыть одно меню — значит закрыть остальные
+  const open = list.hidden;
+  closeMenu();
+  setMenuOpen(button, list, open);
+}
+function closeMenu() {                                // закрывает все меню: диаграмм, статусов, столбцов
+  setMenuOpen(menuButton, menu, false);
+  statusPicker.close();
+  modePicker.close();
+}
+menuButton.addEventListener('click', () => toggleMenu(menuButton, menu));
+// Строка списка: название и, если нужно, серая подсказка справа — число или название модуля.
+function listRow(element, label, secondary = null) {
+  element.className = 'control';
+  element.append(make('span', 'label', label));
+  if (secondary !== null) element.append(make('span', 'secondary', String(secondary)));
+  return element;
+}
+function listItem(node) {
+  const item = make('li');
+  item.append(node);
+  return item;
+}
+// модуль называется словом, а не цветом, и только там, где он отличается от модуля вокруг (context)
+const moduleHint = (module, context) => (module !== context ? MODULES.get(module).name : null);
+function buildMenu() {
+  for (const diagram of DATA.diagrams.filter((d) => d.mode === 'all')) {   // в меню — диаграммы, не их виды
+    const link = listRow(make('a'), diagram.label);
+    link.href = '#' + diagram.slug;
+    link.dataset.code = diagram.code;
+    link.addEventListener('click', (event) => {       // открываем сами: не везде нажатие на «#…» меняет адрес
+      if (event.metaKey || event.ctrlKey || event.shiftKey || event.button !== 0) return;
+      event.preventDefault();
+      switchDiagram(diagram.code);
+    });
+    menu.append(listItem(link));
+  }
+}
+function switchDiagram(code) {                        // открыть диаграмму и записать её в адрес
+  openDiagram(code);
+  writeAddress(true);
+}
+function openDiagram(code) {
+  // диаграмма в текущем виде столбцов; незнакомый адрес — первая диаграмма
+  const diagram = DIAGRAMS.get(`${code}|${view.mode}`) || DIAGRAMS.get(`${DATA.diagrams[0].code}|${view.mode}`);
+  code = diagram.code;
+  closeMenu();
+  if (view.diagram === diagram) return;
+  prepare(diagram);
+  view.diagram = diagram;
+  view.hover = view.selected = -1;
+  view.hoverRow = null;
+  showDetails();
+  hideTip();
+  buildStatusMenu();
+  document.title = diagram.name;
+  document.getElementById('menu-label').textContent = diagram.label;
+  for (const link of menu.querySelectorAll('a')) {
+    if (link.dataset.code === code) link.setAttribute('aria-current', 'page'); else link.removeAttribute('aria-current');
+  }
+  search.value = '';
+  showResults([]);
+  fit();
+}
+
+// ---------- поиск таблицы ----------
+const search = document.getElementById('search');
+const results = document.getElementById('results');
+let found = [];
+const byName = new Intl.Collator();                   // порядок имён в результатах поиска
+function showResults(list, query = '') {
+  found = list;
+  results.replaceChildren();
+  results.hidden = list.length === 0 && query === '';
+  if (list.length === 0 && query !== '') results.append(make('li', 'empty', TEXT.notFound));
+  for (const index of list) {
+    const t = view.diagram.tables[index];
+    const button = listRow(make('button'), t.name, moduleHint(t.module, view.diagram.module));
+    button.type = 'button';
+    button.title = t.title;
+    button.addEventListener('click', () => pick(index));
+    results.append(listItem(button));
+  }
+}
+function pick(index) {
+  search.value = view.diagram.tables[index].name;
+  showResults([]);
+  showTable(index);
+}
+search.addEventListener('input', () => {
+  const query = search.value.trim().toLowerCase();
+  if (query === '') { showResults([]); return; }
+  const tables = view.diagram.tables;
+  const list = [];
+  tables.forEach((t, i) => { if (t.search.includes(query)) list.push(i); });
+  list.sort((a, b) => (tables[b].name.startsWith(query) - tables[a].name.startsWith(query))
+    || byName.compare(tables[a].name, tables[b].name));
+  showResults(list.slice(0, RESULTS_LIMIT), query);
+});
+search.addEventListener('keydown', (event) => {
+  if (event.key === 'Enter' && found.length > 0) pick(found[0]);
+  if (event.key === 'ArrowDown' && found.length > 0) { event.preventDefault(); results.querySelector('button').focus(); }
+});
+results.addEventListener('keydown', (event) => {      // стрелки ходят по найденным таблицам; вверх с первой — в поле
+  if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return;
+  event.preventDefault();
+  const buttons = [...results.querySelectorAll('button')];
+  const at = buttons.indexOf(document.activeElement) + (event.key === 'ArrowDown' ? 1 : -1);
+  if (at < 0) search.focus(); else buttons[Math.min(at, buttons.length - 1)].focus();
+});
+document.addEventListener('keydown', (event) => {     // «/» и Cmd+K (Ctrl+K) — к поиску
+  const typing = event.target instanceof HTMLInputElement;
+  if ((event.key === '/' && !typing) || (event.key.toLowerCase() === 'k' && (event.metaKey || event.ctrlKey))) {
+    event.preventDefault();
+    search.focus();
+    search.select();
+  }
+});
+document.addEventListener('keydown', (event) => {
+  if (event.key !== 'Escape') return;
+  closeMenu();
+  search.value = '';
+  showResults([]);
+  select(-1);
+});
+
+// ---------- запуск ----------
+function start() {
+  DATA = JSON.parse(document.getElementById('diagram-data').textContent);
+  applyStrings(DATA.lang);
+  CARD = DATA.card;
+  MODULES = new Map(DATA.modules.map((m) => [m.code, m]));
+  DIAGRAMS = new Map(DATA.diagrams.map((d) => [`${d.code}|${d.mode}`, d]));
+  DIAGRAMS_BY_SLUG = new Map(DATA.diagrams.filter((d) => d.mode === 'all').map((d) => [d.slug, d]));
+  TABLES = DATA.tables;
+  HAS_STATUS = Object.values(TABLES).some((table) => table.status !== 'same');
+  for (const table of Object.values(TABLES)) table.incoming = new Set();
+  for (const [id, table] of Object.entries(TABLES)) {  // кто ссылается на таблицу — из целей внешних ключей
+    if (!MODULES.has(table.module) || !(table.status in STATUS_NAME)) throw new Error(`table ${id}: unknown module or status`);
+    for (const column of table.columns) {
+      for (const [target] of column[4] || []) {
+        if (!TABLES[target]) throw new Error(`table ${id}: foreign key to unknown table ${target}`);
+        if (target !== id) TABLES[target].incoming.add(id);
+      }
+    }
+  }
+  readTheme();
+  buildMenu();
+  buildModeMenu();
+  resize();
+  openAddress(location.hash.slice(1));
+  window.addEventListener('resize', resize);
+  window.addEventListener('hashchange', () => openAddress(location.hash.slice(1)));
+  const refreshTheme = () => { readTheme(); requestDraw(); };
+  matchMedia('(prefers-color-scheme: dark)').addEventListener('change', refreshTheme);
+  // a host theme switch (data-theme on the root element, as claude.ai artifacts do) repaints the canvas too
+  new MutationObserver(refreshTheme).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+  window.__diagram = { view, draw, fit, pan, zoomAt, gesture, select, showTable, goToTable, openDiagram, openAddress, address, setMode, refreshTheme };   // для проверок из консоли
+}
+try {
+  start();
+} catch (error) {
+  console.error(error);
+  for (const id of ['diagram-panel', 'status-panel', 'mode-panel', 'minimap-panel', 'search-panel', 'zoom-panel', 'details', 'tip', 'canvas']) document.getElementById(id).hidden = true;
+  document.getElementById('failure-text').textContent = TEXT.failure;
+  document.getElementById('failure-reason').textContent = error && error.message ? error.message : String(error);
+  document.getElementById('failure').hidden = false;
+}
+</script>
+</body>
+</html>
