@@ -2,25 +2,16 @@
 
 Readable diagrams of large database schemas, made by your coding agent. Even at 200+ tables.
 
-![Overview of a 49-table store schema: eight modules, each a lane of table cards](docs/screenshots/overview.png)
+![The orders table selected: links to users, teams, invoices and payments highlighted; the side panel lists its columns](docs/screenshots/table.png)
 
 Ask your agent: *"draw our database"*, *"show the schema from the migrations as a diagram"*, *"make a link to the database diagram for the manager"*. It reads the schema from your project, groups the tables into modules with human names, and gives you one HTML file that opens offline, or a private claude.ai artifact link to send.
 
 ## What you get
 
-**Click a table** to read it: its links light up across modules, with "many" and "one" at their ends, and the side panel lists every column with its note and where it points.
-
-![The orders table selected: links to users, teams, invoices and payments highlighted; the side panel lists its columns](docs/screenshots/table.png)
-
-**Keys only** hides every column except primary keys and both ends of each reference, so a big schema fits on one screen.
-
-![The same overview in keys-only view](docs/screenshots/keys.png)
-
-**Light and dark**, following the system or the claude.ai theme.
-
-![The products table in dark theme](docs/screenshots/dark.png)
-
-Also: search (`/` or Cmd+K), a filter for new and changing tables when the schema marks them, a minimap, column notes on hover, and links that open the diagram on one table. The interface is in English or Russian.
+- **Click a table** to read it: its links light up across modules, with "many" and "one" at their ends, and the side panel lists every column with its note and where it points.
+- **Keys only** hides every column except primary keys and both ends of each reference, so a big schema fits on one screen.
+- Search (`/` or Cmd+K), a filter for new and changing tables, a minimap, column notes on hover, links that open the diagram on one table.
+- Light and dark theme, following the system or claude.ai. Interface in English or Russian.
 
 ## Try the example
 

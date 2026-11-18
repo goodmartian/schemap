@@ -16,10 +16,7 @@ variant() {  # name, script
 }
 # a table selected, framed with its whole module at a readable zoom (the address alone would centre the card)
 frame() { echo "const k=window.__diagram,v=k.view;k.openAddress('$1');v.zoom=0.85;v.tx=40;v.ty=96;v.fitted=false;k.draw();"; }
-variant base ''
-variant keys "window.__diagram.setMode('keys')"
 variant table "$(frame orders--orders-orders)"
-variant product "$(frame catalog--catalog-products)"
 
 shot() {  # file, page, extra flags
   nice -n 10 "$CHROME" --headless=new --disable-gpu --hide-scrollbars --no-first-run --no-default-browser-check \
@@ -27,7 +24,4 @@ shot() {  # file, page, extra flags
     ${3:-} --screenshot="$OUT/$1" "file://$TMP/$2.html" >/dev/null 2>&1
   echo "$1: $(wc -c < "$OUT/$1" | tr -d ' ') bytes"
 }
-shot overview.png base
 shot table.png table
-shot keys.png keys
-shot dark.png product --force-dark-mode
