@@ -30,4 +30,4 @@ node skills/schemap/check.mjs schema.json -o diagram.html
 
 ## License
 
-MIT
+MIT. Icons in the viewer are from [Lucide](https://lucide.dev) (ISC; some MIT, © Cole Bemis).
