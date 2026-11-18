@@ -1,5 +1,5 @@
 // Records the demo like a screen recording: one headless Chrome driven over the DevTools protocol, a real mouse
-// (hover, Ctrl+wheel zoom, clicks, typing) and a drawn cursor, 30 frames a second. Writes docs/screenshots/demo.mp4
+// (hover, Ctrl+wheel zoom, a click) and a drawn cursor, 30 frames a second. Writes docs/screenshots/demo.mp4
 // (for posts) and demo.gif (for the readme) from examples/storefront/diagram.html.
 //   node docs/screenshots/record-demo.mjs
 // Needs Node 22+ (WebSocket), Google Chrome and ffmpeg. Time in the video is frame-counted, not wall-clock.
@@ -67,20 +67,43 @@ const CURSOR = `addEventListener('DOMContentLoaded', () => {
   addEventListener('pointerdown', follow, true);
 });`;
 
+// The page's animations (the camera riding along a line) run on its own clock. While a scene is filmed, that clock is
+// the video's: each frame moves time on by 1/FPS and runs the animation frames that are waiting, so a 0.4 s ride is
+// 0.4 s of video however long a screenshot takes.
+const CLOCK = `(() => {
+  const realNow = performance.now.bind(performance), realFrame = window.requestAnimationFrame.bind(window);
+  const clock = window.__clock = { manual: false, now: 0, queue: [],
+    start() { this.now = realNow(); this.manual = true; },
+    stop() { this.manual = false; for (const callback of this.queue.splice(0)) realFrame(callback); },
+    tick(ms) {                                     // twice: a frame's callbacks ask for the drawing in the next one
+      this.now += ms;
+      for (let pass = 0; pass < 2; pass++) for (const callback of this.queue.splice(0)) callback(this.now);
+    } };
+  performance.now = () => (clock.manual ? clock.now : realNow());
+  window.requestAnimationFrame = (callback) => (clock.manual ? (clock.queue.push(callback), 0) : realFrame(callback));
+})();`;
+
 await send('Page.enable');
 await send('Emulation.setDeviceMetricsOverride', { width: WIDTH, height: HEIGHT, deviceScaleFactor: 2, mobile: false });
+// headless Chrome asks pages to reduce motion; the camera ride is part of the story
+await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'no-preference' }] });
+await send('Page.addScriptToEvaluateOnNewDocument', { source: CLOCK });
 await send('Page.addScriptToEvaluateOnNewDocument', { source: CURSOR });
 await send('Page.navigate', { url: PAGE });
 await run('new Promise((r) => { const wait = () => (window.__diagram ? r() : setTimeout(wait, 50)); wait(); })');
 
 // ---------- frames ----------
 let frame = 0, lastFile = null;
-const settle = () => run('new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)))');
+const settle = () => run(`window.__clock.manual ? window.__clock.tick(${1000 / FPS})
+  : new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)))`);
 async function shoot() {                               // one new frame of whatever is on screen now
   await settle();
   const { data } = await send('Page.captureScreenshot', { format: 'jpeg', quality: 92 });
   lastFile = join(frames, `${String(frame++).padStart(5, '0')}.jpg`);
   writeFileSync(lastFile, Buffer.from(data, 'base64'));
+}
+async function film(seconds) {                         // the screen moves on its own: a shot for every frame
+  for (let i = 0; i < Math.round(seconds * FPS); i++) await shoot();
 }
 async function hold(seconds) {                         // the screen stays: one shot, then copies of it
   await new Promise((r) => setTimeout(r, 200));        // let hover and gesture timers in the page settle first
@@ -118,15 +141,7 @@ async function zoomInTo(zoom) {                        // Ctrl+wheel, like a tra
     await shoot();
   }
 }
-async function type(text) {
-  for (const ch of text) {
-    await send('Input.insertText', { text: ch });
-    await hold(0.12);
-  }
-}
-
 // ---------- where things are ----------
-const centre = (selector) => run(`(() => { const r = document.querySelector(${JSON.stringify(selector)}).getBoundingClientRect(); return [r.x + r.width / 2, r.y + r.height / 2]; })()`);
 // a table's header or one of its rows, in window coordinates
 const tableAt = (id, column = null) => run(`(() => {
   const v = window.__diagram.view, t = v.diagram.tables[v.diagram.indexById.get(${JSON.stringify(id)})];
@@ -135,40 +150,39 @@ const tableAt = (id, column = null) => run(`(() => {
   return [(t.x + LAYOUT.cardW * 0.4) * v.zoom + v.tx, y * v.zoom + v.ty];
 })()`);
 
+// a point on the reference line of a foreign key column, px screen pixels along it from its card
+const lineFrom = (id, column, px) => run(`(() => {
+  const v = window.__diagram.view, d = v.diagram, t = d.tables[d.indexById.get(${JSON.stringify(id)})];
+  const p = d.edges[t.rowEdges[t.columns.findIndex((c) => c[0] === ${JSON.stringify(column)})][0]].path;   // starts at the key
+  let left = ${px} / v.zoom;
+  for (let i = 0; i + 3 < p.length; i += 2) {
+    const length = Math.hypot(p[i + 2] - p[i], p[i + 3] - p[i + 1]);
+    if (left <= length) {
+      const k = left / length, x = p[i] + (p[i + 2] - p[i]) * k, y = p[i + 1] + (p[i + 3] - p[i + 1]) * k;
+      return [x * v.zoom + v.tx, y * v.zoom + v.ty];
+    }
+    left -= length;
+  }
+  throw new Error('the line is shorter than ${px} px');
+})()`);
+
 // ---------- the story ----------
+// One walk: the whole store, a pinch towards orders, its links, then along one line to the table it points at.
 await pointer('mouseMoved');
-await hold(1.0);                                       // the whole store
+await hold(1.5);                                       // the whole store
 await moveTo(await tableAt('orders.orders'));
-await zoomInTo(1);                                     // pinch into the orders table
+await zoomInTo(0.62);                                  // a pinch towards orders, until its columns read
 await hold(0.3);
-await moveTo(await tableAt('orders.orders', 'user_id'));   // a column row lights up its link
-await hold(0.7);
-await moveTo(await tableAt('orders.orders'));
-await click();                                         // the table: its links and the panel
-await hold(1.6);
-const keysItem = '#view-menu li:nth-child(1) button';
-await moveTo(await centre('#view-button'));
-await click();                                         // the View menu
-await hold(0.4);
-await moveTo(await centre(keysItem));
-await click();                                         // keys only
-await moveTo(await centre('#zoom-fit'));
-await click();                                         // the whole store fits
-await hold(1.6);
-await moveTo(await centre('#view-button'));
-await click();
-await moveTo(await centre(keysItem));
-await click();
-await moveTo(await centre('#search-button'));
-await click();
-await type('pay');
-await hold(0.5);
-await moveTo(await centre('#results li:nth-child(2) button'));
-await click();                                         // jump to the payments table
-await hold(1.6);
-await moveTo(await centre('#export-button'));
-await click();                                         // export: copy or download DBML and SQL
+await click();                                         // orders: its links light up, the panel opens
 await hold(1.4);
+await moveTo(await lineFrom('orders.orders', 'user_id', 60));   // onto the line to users
+await new Promise((r) => setTimeout(r, 400));          // the tip comes after a moment
+await hold(1.4);                                       // the line thickens, the tip says where it leads
+await run('window.__clock.start()');
+await click();                                         // the camera rides the line to users
+await film(0.4);
+await run('window.__clock.stop()');
+await hold(3.0);                                       // users and every table that points at it
 
 ws.close();
 chrome.kill();
