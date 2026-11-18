@@ -254,7 +254,7 @@
     <ul id="status-menu" class="popover" hidden></ul>
   </div>
   <div class="tool">
-    <button id="mode-button" class="control square" type="button" aria-pressed="false" data-label="modeKeys" data-title="modeKeys"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.586 17.414A2 2 0 0 0 2 18.828V21a1 1 0 0 0 1 1h3a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h1a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h.172a2 2 0 0 0 1.414-.586l.814-.814a6.5 6.5 0 1 0-4-4z"/><circle cx="16.5" cy="7.5" r=".5" fill="currentColor"/></svg></button>
+    <button id="mode-button" class="control square" type="button" aria-pressed="false" data-label="modeKeys" data-title="modeKeysHint"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.586 17.414A2 2 0 0 0 2 18.828V21a1 1 0 0 0 1 1h3a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h1a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h.172a2 2 0 0 0 1.414-.586l.814-.814a6.5 6.5 0 1 0-4-4z"/><circle cx="16.5" cy="7.5" r=".5" fill="currentColor"/></svg></button>
   </div>
   <div id="export-panel" class="tool">
     <button id="export-button" class="control square" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="export-menu" data-label="exportMenu" data-title="exportMenu"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v13"/><path d="m16 6-4-4-4 4"/><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/></svg></button>
@@ -844,12 +844,13 @@ const STRINGS = {
     details: 'Table details', comment: 'Comment', copyLink: 'Copy link', copied: 'Link copied', close: 'Close',
     columns: 'Columns', incoming: 'Referenced by', notFound: 'Not found', required: 'required',
     allTables: 'All tables', failure: 'The diagram did not open.',
-    modeKeys: 'Keys only', minimap: 'Diagram map',
+    modeKeys: 'Keys only', modeKeysHint: 'Keys only: primary keys and the columns of references', minimap: 'Diagram map',
     exportMenu: 'Export schema', copy: { dbml: 'Copy DBML', sql: 'Copy SQL' }, save: { dbml: 'Download DBML', sql: 'Download SQL' },
     exportCopied: 'Copied', copyFailed: 'Not copied', exportSaved: 'Saved', saveFailed: 'Not saved',
     statusLabel: { new: 'new', changed: 'changes', same: '' },                  // mark in the card header
     statusName: { new: 'new', changed: 'changes', same: 'unchanged' },          // status in the details panel
     statusFilter: { new: 'New', changed: 'Changing', same: 'Unchanged' },       // status menu
+    statusHint: { new: 'Tables the database does not have yet', changed: 'Tables that exist and change', same: 'Tables that stay as they are' },
   },
   ru: {
     canvas: 'Схема базы', toolbar: 'Инструменты схемы', diagramMenu: 'Диаграмма', statusMenu: 'Статус таблиц', search: 'Таблица', searchHint: 'Поиск таблицы  /',
@@ -857,12 +858,13 @@ const STRINGS = {
     details: 'Описание таблицы', comment: 'Комментарий', copyLink: 'Скопировать ссылку', copied: 'Ссылка скопирована', close: 'Закрыть',
     columns: 'Столбцы', incoming: 'Ссылаются сюда', notFound: 'Не найдено', required: 'обязательный',
     allTables: 'Все таблицы', failure: 'Схема не открылась.',
-    modeKeys: 'Только ключи', minimap: 'Карта схемы',
+    modeKeys: 'Только ключи', modeKeysHint: 'Только ключи: первичные ключи и столбцы связей', minimap: 'Карта схемы',
     exportMenu: 'Выгрузка схемы', copy: { dbml: 'Скопировать DBML', sql: 'Скопировать SQL' }, save: { dbml: 'Скачать DBML', sql: 'Скачать SQL' },
     exportCopied: 'Скопировано', copyFailed: 'Не скопировано', exportSaved: 'Сохранено', saveFailed: 'Не сохранено',
     statusLabel: { new: 'новая', changed: 'меняется', same: '' },
     statusName: { new: 'новая', changed: 'меняется', same: 'без изменений' },
     statusFilter: { new: 'Новые', changed: 'Меняются', same: 'Без изменений' },
+    statusHint: { new: 'Таблиц ещё нет в базе', changed: 'Таблицы есть, но в них что-то меняется', same: 'Таблицы остаются как есть' },
   },
 };
 let TEXT = STRINGS.en, STATUS_LABEL = TEXT.statusLabel, STATUS_NAME = TEXT.statusName;
@@ -1705,7 +1707,8 @@ function picker(name, onPick) {
   const list = document.getElementById(`${name}-menu`);
   dropdown(button, list);
   return {
-    // choices: [{ value, label, count }] (count — число или null), первый — без фильтра; visible — показывать ли вообще.
+    // choices: [{ value, label, count, hint }] (count — число или null, hint — подсказка при наведении или нет),
+    // первый — без фильтра; visible — показывать ли вообще.
     // Кнопка-значок говорит выбор подсказкой и нажатым видом, кнопка со словом — самим словом.
     show(choices, current, visible) {
       panel.hidden = !visible;
@@ -1716,8 +1719,9 @@ function picker(name, onPick) {
         button.title = `${TEXT[`${name}Menu`]}: ${chosen}`;
         button.setAttribute('aria-label', button.title);
       }
-      list.replaceChildren(...choices.map(({ value, label, count }) => {
+      list.replaceChildren(...choices.map(({ value, label, count, hint }) => {
         const item = menuAction(label, count, () => { closeMenu(); onPick(value); });
+        if (hint) item.firstChild.title = hint;
         if (value === current) item.firstChild.setAttribute('aria-current', 'true');
         return item;
       }));
@@ -1733,7 +1737,7 @@ function buildStatusMenu() {                          // пункты — тол
   const present = Object.keys(names).filter((status) => counts[status].count > 0);
   if (view.status !== null && !present.includes(view.status)) view.status = null;
   statusPicker.show([{ value: null, label: TEXT.allTables, count: null },
-    ...present.map((status) => ({ value: status, label: names[status], count: counts[status].count }))],
+    ...present.map((status) => ({ value: status, label: names[status], count: counts[status].count, hint: TEXT.statusHint[status] }))],
   view.status, present.length >= 2);                  // один статус — фильтровать нечего
 }
 
