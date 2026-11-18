@@ -16,15 +16,20 @@ export function fail(message) {
 
 // ---------- text ----------
 
-/** Splits on sep outside brackets and quotes. brackets: pairs of open/close characters, e.g. '()[]{}'. */
-export function splitTop(text, separator = ',', brackets = '()') {
+/**
+ * Splits on sep outside brackets and quotes. brackets: pairs of open/close characters, e.g. '()[]{}'.
+ * escapes: a backslash inside quotes keeps the next character (DBML's \'); SQL doubles quotes instead.
+ */
+export function splitTop(text, separator = ',', brackets = '()', escapes = false) {
   const opens = [...brackets].filter((_, i) => i % 2 === 0), closes = [...brackets].filter((_, i) => i % 2 === 1);
   const parts = [];
-  let depth = 0, buf = '', quote = null;
+  let depth = 0, buf = '', quote = null, escaped = false;
   for (const ch of text) {
     if (quote) {
       buf += ch;
-      if (ch === quote) quote = null;
+      if (escaped) escaped = false;
+      else if (escapes && ch === '\\') escaped = true;
+      else if (ch === quote) quote = null;
       continue;
     }
     if (QUOTES.includes(ch)) quote = ch;
@@ -45,7 +50,7 @@ export function splitTop(text, separator = ',', brackets = '()') {
 export function unquote(text) {
   text = text.trim();
   if (text.startsWith("'''") && text.endsWith("'''") && text.length >= 6) return text.slice(3, -3).trim();
-  if (text.length >= 2 && text[0] === text.at(-1) && QUOTES.includes(text[0])) return text.slice(1, -1).replaceAll("\\'", "'");
+  if (text.length >= 2 && text[0] === text.at(-1) && QUOTES.includes(text[0])) return text.slice(1, -1).replace(/\\([\\'"])/g, '$1');
   return text;
 }
 

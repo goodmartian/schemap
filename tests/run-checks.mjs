@@ -51,6 +51,17 @@ try {
       if (value[part] !== shapes.sql[part]) failures.push(`${kind} differs from sql in ${part}`);
     }
   }
+  // export and back: the shop written as DBML and as SQL reads back with the same tables, columns and references
+  const shop = join(tmp, 'sql.json');
+  run(join(SKILL, 'check.mjs'), shop, '--dbml', join(tmp, 'shop.dbml'), '--sql', join(tmp, 'shop.sql'));
+  for (const kind of ['dbml', 'sql']) {
+    const back = join(tmp, `back-${kind}.json`);
+    run(join(SKILL, 'importers', `import-${kind}.mjs`), join(tmp, `shop.${kind}`), '-o', back);
+    const value = shape(JSON.parse(readFileSync(back, 'utf8')));
+    for (const part of Object.keys(value)) {
+      if (value[part] !== shapes.sql[part]) failures.push(`export to ${kind} and back differs in ${part}`);
+    }
+  }
 } finally {
   rmSync(tmp, { recursive: true, force: true });
 }
@@ -58,4 +69,4 @@ if (failures.length) {
   console.error('FAILED:\n' + failures.join('\n'));
   process.exit(1);
 }
-console.log(`ok: ${Object.keys(IMPORTERS).join(', ')} agree on ${JSON.stringify(EXPECT)}; all built as a file and as an artifact page`);
+console.log(`ok: ${Object.keys(IMPORTERS).join(', ')} agree on ${JSON.stringify(EXPECT)}; all built as a file and as an artifact page; DBML and SQL export read back the same`);

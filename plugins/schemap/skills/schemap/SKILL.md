@@ -10,7 +10,7 @@ The result is one HTML file that works offline, or a private claude.ai artifact 
 Below, `<skill-dir>` is this skill's folder (the one that holds this SKILL.md). In it:
 
 - `viewer.html` — the whole viewer. It reads `schema.json` from the page, checks it and lays it out in the browser. A page is `viewer.html` with the schema appended.
-- `check.mjs` — checks `schema.json` with the viewer's own code and writes the page. Needs Node 18+.
+- `check.mjs` — checks `schema.json` with the viewer's own code, writes the page, and exports DBML or SQL. Needs Node 18+.
 - `importers/` — turn SQL, Prisma, DBML or a live Postgres database into `schema.json`. Need Node 18+, like `check.mjs`. Optional: `schema.json` can also be written by hand.
 
 ## Workflow
@@ -41,10 +41,20 @@ Below, `<skill-dir>` is this skill's folder (the one that holds this SKILL.md). 
    If any text in `schema.json` contains `</`, write it as `<\/` (the same string in JSON); `check.mjs` does this itself.
 5. **Deliver** the way the user asked:
    - **File:** `diagram.html` opens with a double click, without a server or internet. A link of the form `diagram.html#<diagram>--<table>` opens on one table.
-   - **Link (claude.ai artifact):** build with `--artifact` (`node "<skill-dir>/check.mjs" schema.json -o diagram.artifact.html --artifact`; by hand, leave out the `<!doctype html>` line), as artifacts take a page without its own `<html>`/`<head>`/`<body>`. Publish that file with the Artifact tool and pass the schema's title as `title`. The page is private to the user until they share it. A schema can be confidential (a client's or employer's database), so publish only when the user wants a link. In the page, choosing a table updates the claude.ai address, so Share → Copy link points at that table.
+   - **Link (claude.ai artifact):** build with `--artifact` (`node "<skill-dir>/check.mjs" schema.json -o diagram.artifact.html --artifact`; by hand, leave out the `<!doctype html>` line), as artifacts take a page without its own `<html>`/`<head>`/`<body>`. Publish that file with the Artifact tool, pass the schema's title as `title` and `capabilities: {"downloads": true}` (the page's Download DBML / SQL items need it). The page is private to the user until they share it. A schema can be confidential (a client's or employer's database), so publish only when the user wants a link. In the page, choosing a table updates the claude.ai address, so Share → Copy link points at that table.
 6. **Verify before saying it is done.** Compare the counts `check.mjs` printed (tables, columns, references) with the source. Open the result: on an artifact, click one table and check that its links light up. Report the numbers and anything the importer could not read.
 
 To update a diagram later, change the source or `schema.json` and rebuild. Republish the artifact to the same URL.
+
+## Export to other tools
+
+The page's export menu copies or downloads the schema as DBML or SQL. From the command line: `node "<skill-dir>/check.mjs" schema.json --dbml schema.dbml --sql schema.sql`.
+
+- **DBML** opens in dbdiagram.io, ChartDB, drawDB and DrawSQL. Modules become `TableGroup`s.
+- **SQL** is a Postgres `CREATE TABLE` script with `COMMENT ON` for notes; draw.io reads it through Arrange → Insert → From SQL. Its first line lists the types the schema uses but does not define (enums, domains): they must exist before the script runs. A reference to columns other than the primary key gets a `UNIQUE` on them.
+- Neither format has a field for a table's title or status: the title goes into the table note, the status is left out.
+- Both read back through `import-dbml.mjs` and `import-sql.mjs` with the same tables, columns, notes and references.
+- In a claude.ai artifact a downloaded file is named `….dbml.txt` or `….sql.txt`: artifacts save only some file types.
 
 ## Sources
 

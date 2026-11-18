@@ -93,6 +93,7 @@
   #top-left { position: fixed; top: var(--edge-top); left: var(--edge-left); display: flex; align-items: flex-start; gap: var(--space-2); }
   #top-left .panel { position: static; }
   #diagram-panel, #status-panel, #mode-panel { max-width: var(--menu-width); }
+  #export-panel { flex: none; }                       /* кнопка-значок не сжимается; меню раскрывается по ширине пунктов */
   /* подсказка клавиши; шрифт тот же, без моноширного */
   .shortcut {
     flex: none; min-width: var(--icon-size); padding: 0 var(--space-1); border: 1px solid var(--color-border); border-radius: var(--radius-inner);
@@ -173,15 +174,17 @@
     /* открыта ли колонка — CSS читает с самой колонки (атрибут hidden), отдельного флага нет.
        У холста своя ширина в пикселях: «auto» её не растягивает, поэтому ширина задана явно. */
     body:has(#details:not([hidden])) #canvas { width: calc(100% - var(--details-width)); }
-    body:has(#details:not([hidden])) :is(#search-panel, #zoom-panel) { right: calc(var(--details-width) + var(--space-3)); }
+    body:has(#details:not([hidden])) :is(#search-panel, #zoom-panel, #top-left) { right: calc(var(--details-width) + var(--space-3)); }
+    body:has(#details:not([hidden])) #top-left .panel { min-width: 0; }   /* меню не уходят под колонку, а режутся многоточием */
   }
+  /* поиск — вторым рядом во всю ширину схемы, когда в ряду с меню ему нет места: узкое окно, открытая колонка
+     описания, длинное название диаграммы. Решает resize() по положению панелей, а не по ширине окна. */
+  body.search-below #search-panel { top: calc(var(--edge-top) + var(--bar-height) + var(--space-2)); left: var(--edge-left); width: auto; }
   @media (max-width: 719px) {
     #details {
       top: auto; left: var(--edge-left); right: var(--edge-right); bottom: var(--edge-bottom); width: auto; max-height: 50%;
       padding: 0; border: 1px solid var(--color-border); border-radius: var(--radius-outer); box-shadow: var(--shadow-overlay);
     }
-    /* в узком окне поиск — вторым рядом во всю ширину, чтобы не закрывал выбор диаграммы и статуса */
-    #search-panel { top: calc(var(--edge-top) + var(--bar-height) + var(--space-2)); left: var(--edge-left); width: auto; }
     #top-left { right: var(--edge-right); }            /* панели делят ряд; длинные названия режутся многоточием */
     #top-left .panel { min-width: 0; }
     #minimap-panel { display: none; }                  /* на телефоне мини-карте нет места рядом с описанием */
@@ -254,6 +257,12 @@
     <svg class="chevron" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 6l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
   </button>
   <ul id="mode-menu" hidden></ul>
+</nav>
+<nav id="export-panel" class="panel" data-label="exportMenu">
+  <button id="export-button" class="control square" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="export-menu" data-label="exportMenu" data-title="exportMenu">
+    <svg class="icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 10V2.75M5.25 5.25L8 2.5l2.75 2.75M3.5 9.5v2.75c0 .69.56 1.25 1.25 1.25h6.5c.69 0 1.25-.56 1.25-1.25V9.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+  </button>
+  <ul id="export-menu" hidden></ul>
 </nav>
 </div>
 
@@ -722,6 +731,99 @@ function layoutSchema(raw) {
   summary.push('cards overlap: 0; every table inside its area; areas do not overlap');
   return { data, summary };
 }
+
+// ---------- export: the schema as DBML and as SQL for other tools; the importers read both back ----------
+// Both formats have no field for a table's title or status: the title goes into the table note, the status is left out.
+const tableNote = (t) => [t.title, t.note].filter(Boolean).join(' — ');
+// [schema, name] when the id is "schema.name", otherwise [name]
+function qualifiedName(t) {
+  const dot = t.id.lastIndexOf('.');
+  return dot > 0 && t.id.slice(dot + 1) === t.name ? [t.id.slice(0, dot), t.name] : [t.name];
+}
+
+const dbmlName = (name) => (/^[A-Za-z_][A-Za-z0-9_]*$/.test(name) ? name : `"${name.replaceAll('"', '')}"`);
+const dbmlType = (type) => (/^[A-Za-z_][A-Za-z0-9_]*(\([^)"]*\))?(\[\])*$/.test(type) ? type : `"${type.replaceAll('"', '')}"`);
+const dbmlString = (text) => (text.includes('\n') ? `'''${text.replaceAll("'''", "'' '")}'''`
+  : `'${text.replaceAll('\\', '\\\\').replaceAll("'", "\\'")}'`);
+
+function schemaToDbml(raw) {
+  const schema = checkSchema(raw);
+  const byId = new Map(schema.tables.map((t) => [t.id, t]));
+  const tableRef = (t) => qualifiedName(t).map(dbmlName).join('.');
+  const end = (e) => {
+    const columns = e.columns.map(dbmlName);
+    return `${tableRef(byId.get(e.table))}.${columns.length === 1 ? columns[0] : `(${columns.join(', ')})`}`;
+  };
+  const out = [];
+  for (const t of schema.tables) {
+    const keys = t.columns.filter((c) => c.pk), note = tableNote(t);
+    out.push(`Table ${tableRef(t)}${note ? ` [note: ${dbmlString(note)}]` : ''} {`);
+    for (const c of t.columns) {
+      const single = c.pk && keys.length === 1;   // a one-column key sits on the column, a composite one in indexes
+      const settings = [single && 'pk', !c.nullable && !single && 'not null', c.note && `note: ${dbmlString(c.note)}`].filter(Boolean);
+      out.push(`  ${dbmlName(c.name)} ${dbmlType(c.type)}${settings.length ? ` [${settings.join(', ')}]` : ''}`);
+    }
+    if (keys.length > 1) out.push('', '  indexes {', `    (${keys.map((c) => dbmlName(c.name)).join(', ')}) [pk]`, '  }');
+    out.push('}', '');
+  }
+  for (const r of schema.refs) out.push(`Ref: ${end(r.from)} > ${end(r.to)}`);
+  for (const m of schema.modules) {
+    out.push('', `TableGroup ${dbmlName(m.code)} [note: ${dbmlString(m.name)}] {`,
+      ...schema.tables.filter((t) => t.module === m.code).map((t) => `  ${tableRef(t)}`), '}');
+  }
+  return out.join('\n') + '\n';
+}
+
+// names that must be quoted in Postgres even when written in lower case
+const SQL_RESERVED = new Set(('all analyse analyze and any array as asc asymmetric both case cast check collate column '
+  + 'constraint create current_catalog current_date current_role current_time current_timestamp current_user default '
+  + 'deferrable desc distinct do else end except false fetch for foreign from grant group having in initially '
+  + 'intersect into lateral leading limit localtime localtimestamp not null offset on only or order placing primary '
+  + 'references returning select session_user some symmetric table then to trailing true union unique user using '
+  + 'variadic when where window with').split(' '));
+const sqlName = (name) => (/^[a-z_][a-z0-9_$]*$/.test(name) && !SQL_RESERVED.has(name) ? name : `"${name.replaceAll('"', '""')}"`);
+const sqlString = (text) => `'${text.replaceAll("'", "''")}'`;
+// Postgres' own types; any other (an enum, a domain) is the database's own and is not in schema.json
+const POSTGRES_TYPES = new Set(('smallint integer int int2 int4 int8 bigint serial serial2 serial4 serial8 smallserial '
+  + 'bigserial decimal numeric real float float4 float8 double precision money text varchar character varying char '
+  + 'character bpchar bytea boolean bool date time timetz timestamp timestamptz with without zone interval uuid json '
+  + 'jsonb xml inet cidr macaddr macaddr8 point line lseg box path polygon circle tsvector tsquery bit varbit '
+  + 'int4range int8range numrange tsrange tstzrange daterange int4multirange int8multirange nummultirange '
+  + 'tsmultirange tstzmultirange datemultirange oid name').split(' '));
+const isPostgresType = (type) => type.replace(/\(.*?\)|\[\]/g, ' ').trim().split(/\s+/).every((word) => POSTGRES_TYPES.has(word));
+
+function schemaToSql(raw) {
+  const schema = checkSchema(raw);
+  const byId = new Map(schema.tables.map((t) => [t.id, t]));
+  const tableRef = (t) => qualifiedName(t).map(sqlName).join('.');
+  const out = [];
+  const ownTypes = [...new Set(schema.tables.flatMap((t) => t.columns.map((c) => c.type)).filter((type) => !isPostgresType(type.toLowerCase())))];
+  if (ownTypes.length) out.push(`-- Types the schema uses but does not define (enums, domains); create them first: ${ownTypes.sort().join(', ')}`, '');
+  const schemas = [...new Set(schema.tables.map(qualifiedName).filter((q) => q.length === 2).map((q) => q[0]))];
+  for (const s of schemas) out.push(`CREATE SCHEMA IF NOT EXISTS ${sqlName(s)};`);
+  for (const t of schema.tables) {
+    const keys = t.columns.filter((c) => c.pk).map((c) => sqlName(c.name));
+    const lines = t.columns.map((c) => `  ${sqlName(c.name)} ${c.type}${c.nullable ? '' : ' NOT NULL'}`);
+    if (keys.length) lines.push(`  PRIMARY KEY (${keys.join(', ')})`);
+    out.push('', `CREATE TABLE ${tableRef(t)} (`, lines.join(',\n'), ');');
+    if (tableNote(t)) out.push(`COMMENT ON TABLE ${tableRef(t)} IS ${sqlString(tableNote(t))};`);
+    for (const c of t.columns) if (c.note) out.push(`COMMENT ON COLUMN ${tableRef(t)}.${sqlName(c.name)} IS ${sqlString(c.note)};`);
+  }
+  if (schema.refs.length) out.push('');
+  // a reference proves its target unique; one that is not the primary key needs that said for Postgres to accept it
+  const targets = new Set();
+  for (const r of schema.refs) {
+    const target = byId.get(r.to.table), keys = target.columns.filter((c) => c.pk).map((c) => c.name);
+    const sameAsKey = keys.length === r.to.columns.length && keys.every((k) => r.to.columns.includes(k));
+    const line = `ALTER TABLE ${tableRef(target)} ADD UNIQUE (${r.to.columns.map(sqlName).join(', ')});`;
+    if (!sameAsKey && !targets.has(line)) { targets.add(line); out.push(line); }
+  }
+  for (const r of schema.refs) {
+    out.push(`ALTER TABLE ${tableRef(byId.get(r.from.table))} ADD FOREIGN KEY (${r.from.columns.map(sqlName).join(', ')}) `
+      + `REFERENCES ${tableRef(byId.get(r.to.table))} (${r.to.columns.map(sqlName).join(', ')});`);
+  }
+  return out.join('\n') + '\n';
+}
 </script>
 <script>
 'use strict';
@@ -742,6 +844,8 @@ const STRINGS = {
     columns: 'Columns', incoming: 'Referenced by', notFound: 'Not found', required: 'required',
     allTables: 'All tables', failure: 'The diagram did not open.',
     modeMenu: 'Columns shown', modeAll: 'All columns', modeKeys: 'Keys only', minimap: 'Diagram map',
+    exportMenu: 'Export schema', copyDbml: 'Copy DBML', copySql: 'Copy SQL', saveDbml: 'Download DBML', saveSql: 'Download SQL',
+    exportCopied: 'Copied', copyFailed: 'Not copied', exportSaved: 'Saved', saveFailed: 'Not saved',
     statusLabel: { new: 'new', changed: 'changes', same: '' },                  // mark in the card header
     statusName: { new: 'new', changed: 'changes', same: 'unchanged' },          // status in the details panel
     statusFilter: { new: 'New', changed: 'Changing', same: 'Unchanged' },       // status menu
@@ -753,6 +857,8 @@ const STRINGS = {
     columns: 'Столбцы', incoming: 'Ссылаются сюда', notFound: 'Не найдено', required: 'обязательный',
     allTables: 'Все таблицы', failure: 'Схема не открылась.',
     modeMenu: 'Какие столбцы показать', modeAll: 'Все столбцы', modeKeys: 'Только ключи', minimap: 'Карта схемы',
+    exportMenu: 'Выгрузка схемы', copyDbml: 'Скопировать DBML', copySql: 'Скопировать SQL', saveDbml: 'Скачать DBML', saveSql: 'Скачать SQL',
+    exportCopied: 'Скопировано', copyFailed: 'Не скопировано', exportSaved: 'Сохранено', saveFailed: 'Не сохранено',
     statusLabel: { new: 'новая', changed: 'меняется', same: '' },
     statusName: { new: 'новая', changed: 'меняется', same: 'без изменений' },
     statusFilter: { new: 'Новые', changed: 'Меняются', same: 'Без изменений' },
@@ -803,7 +909,7 @@ const ctx = canvas.getContext('2d', { alpha: false });
 const topLeft = document.getElementById('top-left'), searchPanel = document.getElementById('search-panel');
 const view = { diagram: null, zoom: 1, tx: 0, ty: 0, width: 0, height: 0, dpr: 1, hover: -1, selected: -1,
   hoverRow: null, status: null, mode: 'all', fitZoom: 1, fitted: true, moving: false };
-let DATA, CARD, MODULES, DIAGRAMS, DIAGRAMS_BY_SLUG, TABLES, HAS_STATUS, theme;
+let SOURCE, DATA, CARD, MODULES, DIAGRAMS, DIAGRAMS_BY_SLUG, TABLES, HAS_STATUS, theme;   // SOURCE — схема как в файле, для выгрузки
 
 // ---------- тема ----------
 function readTheme() {
@@ -1352,8 +1458,15 @@ function draw() {
       // подпись держится у левого края области; когда область уехала влево — у края окна, пока хватает области
       const x = Math.round(Math.max(left + insetX, Math.min(12, right - labelW)));
       const home = inside ? top + inset : top - LABEL_H - 4;
-      const y = Math.round(Math.min(Math.max(home, topInset), Math.max(home, bottom - LABEL_H - inset)));
-      let clash = false;                              // две подписи не пересекаются: вторая тогда не рисуется
+      let y = Math.round(Math.min(Math.max(home, topInset), Math.max(home, bottom - LABEL_H - inset)));
+      const overOther = (at) => diagram.areas.some((other) => other !== area
+        && x < (other.x + other.w) * zoom + tx && x + labelW > other.x * zoom + tx
+        && at < (other.y + other.h) * zoom + ty && at + LABEL_H > other.y * zoom + ty);
+      // подпись не закрывает чужую область: при мелком масштабе промежуток между рядами ниже подписи —
+      // тогда она ложится в свою область, у верхнего края
+      if (overOther(y)) y = Math.round(Math.max(top + 4, Math.min(topInset, bottom - LABEL_H - 4)));
+      let clash = overOther(y) || y + LABEL_H > bottom;
+      // две подписи не пересекаются: вторая тогда не рисуется
       for (let n = 0; n < placed.length; n += 3) {
         if (x < placed[n] + placed[n + 2] && x + labelW > placed[n] && Math.abs(y - placed[n + 1]) < LABEL_H) clash = true;
       }
@@ -1362,7 +1475,7 @@ function draw() {
       // подложка закрывает линии связей под текстом и выглядит как то, на чём лежит: полоса или фон
       ctx.fillStyle = theme.background;
       ctx.fillRect(x, y, labelW, LABEL_H);
-      if (inside && y + LABEL_H <= bottom) {
+      if (y >= top && y + LABEL_H <= bottom) {          // лежит на своей полосе — в её оттенке
         ctx.globalAlpha = 0.07;
         ctx.fillStyle = moduleColor(area.module);
         ctx.fillRect(x, y, labelW, LABEL_H);
@@ -1417,7 +1530,12 @@ function resize() {
   view.height = window.innerHeight;
   canvas.width = Math.round(view.width * view.dpr);
   canvas.height = Math.round(view.height * view.dpr);
-  // ниже всех панелей сверху (в узком окне поиск стоит вторым рядом) и ещё отступ
+  // поиск сначала в ряду с меню; наезжает на них — уходит вторым рядом
+  document.body.classList.remove('search-below');
+  // край — у последнего видимого меню: сам ряд при открытой колонке растянут до её края
+  const menusRight = Math.max(...[...topLeft.children].filter((panel) => !panel.hidden).map((panel) => panel.getBoundingClientRect().right));
+  document.body.classList.toggle('search-below', searchPanel.getBoundingClientRect().left < menusRight + 8);
+  // ниже всех панелей сверху и ещё отступ
   topInset = Math.max(topLeft.getBoundingClientRect().bottom, searchPanel.getBoundingClientRect().bottom) + 12;
   fitTop = topInset + LABEL_H + 4;                    // на общем виде над областями ещё строка их подписей
   minimapShown = !minimapPanel.hidden && minimap.clientWidth > 0;
@@ -1764,6 +1882,61 @@ document.getElementById('zoom-in').addEventListener('click', () => zoomAt(view.w
 document.getElementById('zoom-out').addEventListener('click', () => zoomAt(view.width / 2, view.height / 2, 1 / ZOOM_STEP));
 document.getElementById('zoom-fit').addEventListener('click', fit);
 
+// ---------- выгрузка: DBML и SQL — в буфер обмена или файлом ----------
+// Их принимают dbdiagram.io, ChartDB, drawDB, draw.io. В артефакте claude.ai файл отдаёт разрешение downloads,
+// и только с расширением из его списка: .dbml и .sql там сохраняются как .dbml.txt и .sql.txt.
+const exportButton = document.getElementById('export-button');
+const exportMenu = document.getElementById('export-menu');
+exportButton.addEventListener('click', () => toggleMenu(exportButton, exportMenu));
+let saveFile = null;                                  // (имя, текст) → Promise; null — скачать нельзя
+if (window.self === window.top) {                     // своя страница: обычная загрузка браузера
+  saveFile = (name, text) => {
+    const link = make('a');
+    link.href = URL.createObjectURL(new Blob([text], { type: 'text/plain' }));
+    link.download = name;
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(link.href), 0);
+    return Promise.resolve();
+  };
+} else if (window.claude && window.claude.use) {      // артефакт: файл отдаёт claude.ai, человек подтверждает
+  window.claude.use('downloads').then((downloads) => {
+    if (!downloads) return;
+    saveFile = (name, text) => downloads.save({ filename: `${name}.txt`, data: text });
+    if (SOURCE) buildExportMenu();                   // схема уже прочитана — меню пересобирается
+  });
+}
+function buildExportMenu() {
+  const fileName = (SOURCE.title || 'schema').replace(/[^\p{L}\p{N}_-]+/gu, '-');
+  const rows = [];
+  if (navigator.clipboard) {
+    rows.push([TEXT.copyDbml, () => navigator.clipboard.writeText(schemaToDbml(SOURCE)), TEXT.exportCopied, TEXT.copyFailed]);
+    rows.push([TEXT.copySql, () => navigator.clipboard.writeText(schemaToSql(SOURCE)), TEXT.exportCopied, TEXT.copyFailed]);
+  }
+  if (saveFile) {
+    rows.push([TEXT.saveDbml, () => saveFile(`${fileName}.dbml`, schemaToDbml(SOURCE)), TEXT.exportSaved, TEXT.saveFailed]);
+    rows.push([TEXT.saveSql, () => saveFile(`${fileName}.sql`, schemaToSql(SOURCE)), TEXT.exportSaved, TEXT.saveFailed]);
+  }
+  document.getElementById('export-panel').hidden = rows.length === 0;
+  exportMenu.replaceChildren(...rows.map(([label, run, done, failed]) => {
+    const row = listRow(make('button'), label);
+    row.type = 'button';
+    row.addEventListener('click', () => runExport(row, run, done, failed));
+    return listItem(row);
+  }));
+}
+function runExport(row, run, done, failed) {          // итог — серым справа в той же строке, потом меню закрывается
+  const report = (text) => {
+    row.querySelector('.secondary')?.remove();
+    row.append(make('span', 'secondary', text));
+    setTimeout(() => { row.querySelector('.secondary')?.remove(); closeMenu(); }, 1200);
+  };
+  run().then(() => report(done), (error) => {
+    if (error && error.code === 'declined') { closeMenu(); return; }   // человек сам отказался сохранять
+    console.error('export:', error);
+    report(failed);
+  });
+}
+
 // ---------- выбор диаграммы ----------
 const menuButton = document.getElementById('menu-button');
 const menu = document.getElementById('menu');
@@ -1776,10 +1949,11 @@ function toggleMenu(button, list) {                   // открыть одно
   closeMenu();
   setMenuOpen(button, list, open);
 }
-function closeMenu() {                                // закрывает все меню: диаграмм, статусов, столбцов
+function closeMenu() {                                // закрывает все меню: диаграмм, статусов, столбцов, выгрузки
   setMenuOpen(menuButton, menu, false);
   statusPicker.close();
   modePicker.close();
+  setMenuOpen(exportButton, exportMenu, false);
 }
 menuButton.addEventListener('click', () => toggleMenu(menuButton, menu));
 // Строка списка: название и, если нужно, серая подсказка справа — число или название модуля.
@@ -1901,7 +2075,14 @@ document.addEventListener('keydown', (event) => {
 function start() {
   const source = document.getElementById('schema');
   if (!source) throw new Error('no schema on the page: it goes after the viewer, in a JSON script element with id "schema"');
-  DATA = layoutSchema(JSON.parse(source.textContent)).data;
+  const raw = JSON.parse(source.textContent);
+  // без "lang" в схеме — язык браузера, если он есть у просмотрщика; иначе английский
+  if (raw && typeof raw === 'object' && !('lang' in raw)) {
+    const tags = navigator.languages && navigator.languages.length ? navigator.languages : [navigator.language || ''];
+    raw.lang = tags.map((tag) => tag.toLowerCase().split('-')[0]).find((code) => SCHEMA_LANGS.includes(code)) || 'en';
+  }
+  SOURCE = raw;
+  DATA = layoutSchema(raw).data;
   applyStrings(DATA.lang);
   CARD = DATA.card;
   MODULES = new Map(DATA.modules.map((m) => [m.code, m]));
@@ -1922,9 +2103,11 @@ function start() {
   readTheme();
   buildMenu();
   buildModeMenu();
+  buildExportMenu();
   resize();
   openAddress(location.hash.slice(1));
   window.addEventListener('resize', resize);
+  new ResizeObserver(resize).observe(topLeft);        // название диаграммы меняет ширину меню — и место для поиска
   window.addEventListener('hashchange', () => openAddress(location.hash.slice(1)));
   const refreshTheme = () => { readTheme(); requestDraw(); };
   matchMedia('(prefers-color-scheme: dark)').addEventListener('change', refreshTheme);

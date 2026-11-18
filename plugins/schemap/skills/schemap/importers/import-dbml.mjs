@@ -60,6 +60,7 @@ function* blocks(text) {
       const ch = text[j];
       if (quote) {
         if (text.startsWith("'''", j) && quote === "'''") { quote = null; j += 3; continue; }
+        if (quote !== "'''" && ch === '\\') { j += 2; continue; }   // \' inside a string does not close it
         if (quote !== "'''" && ch === quote) quote = null;
         j += 1; continue;
       }
@@ -78,7 +79,7 @@ function* blocks(text) {
 function settings(text) {
   const m = /\[([\s\S]*)\]\s*$/.exec(text);
   if (!m) return [];
-  return splitTop(m[1], ',', BRACKETS).map((part) => {
+  return splitTop(m[1], ',', BRACKETS, true).map((part) => {
     const colon = part.indexOf(':');
     return colon < 0 ? [part.trim().toLowerCase(), null]
       : [part.slice(0, colon).trim().toLowerCase(), part.slice(colon + 1).trim()];

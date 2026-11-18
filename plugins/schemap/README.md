@@ -4,7 +4,7 @@ A skill for coding agents that draws a database schema as one HTML file or a cla
 
 Sources: SQL migrations, a Postgres database, Prisma, DBML, or a written spec.
 
-The viewer has search, a minimap, a keys-only view, a filter for new and changed tables, light and dark themes, and links to a single table. The interface is in English or Russian.
+The viewer has search, a minimap, a keys-only view, a filter for new and changed tables, light and dark themes, links to a single table, and export to DBML and SQL for dbdiagram.io, ChartDB, drawDB and draw.io. The interface is in English or Russian.
 
 ## Usage
 
@@ -26,7 +26,7 @@ node skills/schemap/check.mjs schema.json -o diagram.html
 - `check.mjs` and the importers read local files and write `schema.json` and the page. No network.
 - `psql` with `importers/postgres_schema.sql` runs one read-only query against the system catalogs of the database the user names. The connection string stays in the user's environment and is not written to files.
 - The page loads nothing from the network.
-- An artifact is published to claude.ai only when the user asks for a link.
+- An artifact is published to claude.ai only when the user asks for a link. Its export menu saves a file only after the viewer confirms it.
 
 ## License
 
