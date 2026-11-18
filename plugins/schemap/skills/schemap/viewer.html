@@ -197,7 +197,9 @@
   #details-top .square { flex: none; }
   #details-body { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 0 var(--space-4) var(--space-3); overflow-wrap: anywhere; }
   h2 { flex: 1; min-width: 0; margin: 0; font-size: 15px; line-height: 24px; font-weight: 600; overflow-wrap: anywhere; }
-  h3 { margin: var(--space-4) 0 var(--space-1); font-size: 12px; line-height: 16px; font-weight: 500; color: var(--color-text-muted); }
+  /* заголовок раздела, как в Linear: название цветом текста, рядом число серым */
+  h3 { display: flex; gap: var(--space-2); margin: var(--space-4) 0 var(--space-1); font-size: 13px; line-height: 20px; font-weight: 600; }
+  h3 .count { font-weight: 400; color: var(--color-text-muted); font-variant-numeric: tabular-nums; }
   #details p { margin: 0; }
   #details ul { margin: 0; }
   #details-note { color: var(--color-text-muted); }
@@ -1751,6 +1753,9 @@ function tableLink(id, text) {                        // кнопка-ссылк
   button.addEventListener('click', () => goToTable(id));
   return button;
 }
+function sectionTitle(node, label, count) {           // название раздела и его число
+  node.replaceChildren(label, make('span', 'count', String(count)));
+}
 function showDetails() {
   details.hidden = view.selected < 0;
   // колонка открылась или закрылась — CSS поменял ширину холста; вид остаётся на месте, слева
@@ -1766,7 +1771,7 @@ function showDetails() {
   document.getElementById('details-meta').textContent = HAS_STATUS ? `${moduleName} · ${STATUS_NAME[table.status]}` : moduleName;
   const columns = document.getElementById('details-columns');
   columns.replaceChildren();
-  document.getElementById('details-columns-title').textContent = `${TEXT.columns} · ${table.columns.length}`;
+  sectionTitle(document.getElementById('details-columns-title'), TEXT.columns, table.columns.length);
   for (const [name, type, flags, note, links] of table.columns) {
     const item = make('li', 'column');
     item.append(make('span', 'column-key', flags & PK ? 'PK' : flags & FK ? 'FK' : ''),
@@ -1786,7 +1791,7 @@ function showDetails() {
     incoming.append(listItem(button));
   }
   const incomingTitle = document.getElementById('details-incoming-title');
-  incomingTitle.textContent = `${TEXT.incoming} · ${table.incoming.size}`;
+  sectionTitle(incomingTitle, TEXT.incoming, table.incoming.size);
   incomingTitle.hidden = incoming.hidden = table.incoming.size === 0;
   document.getElementById('details-body').scrollTop = 0;
 }
