@@ -1045,8 +1045,8 @@ function prepare(diagram) {
   });
   diagram.areas.forEach((area) => {
     if (area.module !== null && !MODULES.has(area.module)) throw new Error(`area ${area.name}: unknown module`);
-    area.text = `${area.name} · ${area.count}`;
-    area.textWidth = textWidth(area.text, 600, AREA_FONT_PX);
+    area.text = `${area.name}  ${area.count}`;       // как заголовок раздела в панели: название, рядом число
+    area.textWidth = textWidth(area.name, 600, AREA_FONT_PX) + textWidth(area.text.slice(area.name.length), 400, AREA_FONT_PX);
     area.namePrefix = Float32Array.from({ length: area.name.length + 1 },   // ширина начала названия длиной k знаков
       (_, k) => textWidth(area.name.slice(0, k), 600, AREA_FONT_PX));
   });
@@ -1501,9 +1501,11 @@ function draw() {
       const name = withCount ? area.name : area.label;
       ctx.fillStyle = theme.text;
       ctx.fillText(name, textX, middle);
-      if (withCount) {
+      if (withCount) {                                // число — серым и обычным начертанием
         ctx.fillStyle = theme.muted;
+        ctx.font = `400 ${AREA_FONT_PX}px ${FONT_FAMILY}`;
         ctx.fillText(area.text.slice(area.name.length), textX + area.namePrefix[area.name.length], middle);
+        ctx.font = `600 ${AREA_FONT_PX}px ${FONT_FAMILY}`;
       }
     }
     drawMinimap(x0, y0, x1, y1);
