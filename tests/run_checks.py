@@ -13,7 +13,7 @@ import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-SKILL, FIXTURES = ROOT / 'skills' / 'schemap', ROOT / 'tests' / 'fixtures'
+SKILL, FIXTURES = ROOT / 'plugins' / 'schemap' / 'skills' / 'schemap', ROOT / 'tests' / 'fixtures'
 IMPORTERS_DIR, CHECK = SKILL / 'importers', SKILL / 'check.mjs'
 NODE = shutil.which('node')
 IMPORTERS = {'sql': ('import_sql.py', 'shop.sql'), 'prisma': ('import_prisma.py', 'shop.prisma'),
@@ -23,7 +23,12 @@ EXPECT = {'tables': 9, 'columns': 34, 'refs': 9, 'modules': 3}
 
 def run(*args):
     """A Python script, or check.mjs through Node; stops on the first failure with its output."""
-    program = [NODE] if str(args[0]).endswith('.mjs') else [sys.executable, '-I']
+    if str(args[0]).endswith('.mjs'):
+        if not NODE:
+            sys.exit('FAILED: node not found; check.mjs needs Node 18+')
+        program = [NODE]
+    else:
+        program = [sys.executable, '-I']
     result = subprocess.run([*program, *map(str, args)], capture_output=True, text=True)
     if result.returncode:
         sys.exit(f'FAILED: {" ".join(map(str, args))}\n{result.stdout}{result.stderr}')
@@ -39,8 +44,6 @@ def shape(schema):
 
 
 def main():
-    if not NODE:
-        sys.exit('FAILED: node not found; check.mjs needs Node 18+')
     failures, shapes = [], {}
     with tempfile.TemporaryDirectory() as tmp:
         for name, (script, fixture) in IMPORTERS.items():

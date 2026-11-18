@@ -5,7 +5,7 @@
   "plugins": [
     {
       "name": "schemap",
-      "source": "./",
+      "source": "./plugins/schemap",
       "description": "Draws a database schema as one HTML file or a claude.ai artifact."
     }
   ]
