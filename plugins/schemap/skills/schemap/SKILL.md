@@ -41,10 +41,16 @@ Below, `<skill-dir>` is this skill's folder (the one that holds this SKILL.md). 
    If any text in `schema.json` contains `</`, write it as `<\/` (the same string in JSON); `check.mjs` does this itself.
 5. **Deliver** the way the user asked:
    - **File:** `diagram.html` opens with a double click, without a server or internet. A link of the form `diagram.html#<diagram>--<table>` opens on one table.
-   - **Link (claude.ai artifact):** build with `--artifact` (`node "<skill-dir>/check.mjs" schema.json -o diagram.artifact.html --artifact`; by hand, leave out the `<!doctype html>` line), as artifacts take a page without its own `<html>`/`<head>`/`<body>`. Publish that file with the Artifact tool, pass the schema's title as `title` and `capabilities: {"downloads": true}` (the page's Download DBML / SQL items need it). The page is private to the user until they share it. A schema can be confidential (a client's or employer's database), so publish only when the user wants a link. In the page, choosing a table updates the claude.ai address, so Share → Copy link points at that table.
+   - **Link (claude.ai artifact):** build with `--artifact` (`node "<skill-dir>/check.mjs" schema.json -o diagram.artifact.html --artifact`; by hand, leave out the `<!doctype html>` line), as artifacts take a page without its own `<html>`/`<head>`/`<body>`. Publish that file with the Artifact tool, pass the schema's title as `title` and `capabilities: {"downloads": true, "comments": {"customAnchors": true}}`: the first lets the page's Download DBML / SQL items save a file, the second ties claude.ai comments to tables and columns (below). The page is private to the user until they share it. A schema can be confidential (a client's or employer's database), so publish only when the user wants a link. In the page, choosing a table updates the claude.ai address, so Share → Copy link points at that table.
 6. **Verify before saying it is done.** Compare the counts `check.mjs` printed (tables, columns, references) with the source. Open the result: on an artifact, click one table and check that its links light up. Report the numbers and anything the importer could not read.
 
 To update a diagram later, change the source or `schema.json` and rebuild. Republish the artifact to the same URL.
+
+## Comments on the artifact
+
+In claude.ai comment mode, a click on a table or a column row opens the comment composer there; the table panel's Comment button does the same for the whole table. The thread's location is the table id (`marketplace.listings`) or the id with the column (`marketplace.listings.price`), and its pin moves with the diagram. A table the open diagram does not show, or one panned out of view, keeps its thread in claude.ai's comment list; choosing it there opens the table.
+
+A comment sent to Claude reaches the session that watches the artifact (the one that published it). Read it with the ArtifactComments tool, answer in the thread, and when it asks for a change, change the source or `schema.json`, rebuild and republish to the same URL.
 
 ## Export to other tools
 

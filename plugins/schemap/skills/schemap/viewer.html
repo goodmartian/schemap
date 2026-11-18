@@ -81,6 +81,7 @@
   #canvas { position: fixed; inset: 0; display: block; width: 100%; height: 100%; touch-action: none; cursor: grab; }
   #canvas.over-table { cursor: pointer; }
   #canvas.panning { cursor: grabbing; }
+  #canvas.commenting, #canvas.commenting.over-table { cursor: crosshair; }   /* режим комментариев claude.ai */
   .panel {
     position: fixed;
     padding: var(--space-1);
@@ -287,6 +288,7 @@
 <aside id="details" class="panel" data-label="details" hidden>
   <div id="details-top">
     <h2 id="details-name"></h2>
+    <button id="details-comment" class="control square" type="button" data-label="comment" data-title="comment" hidden><svg class="icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M4.75 3.5h6.5c.69 0 1.25.56 1.25 1.25v4.5c0 .69-.56 1.25-1.25 1.25H7.5L5 12.5v-2h-.25c-.69 0-1.25-.56-1.25-1.25v-4.5c0-.69.56-1.25 1.25-1.25z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg></button>
     <button id="details-copy" class="control square" type="button" data-label="copyLink" data-title="copyLink"><svg id="copy-link" class="icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M6.75 9.25l2.5-2.5M7.25 4.75l1-1a2.48 2.48 0 013.5 3.5l-1 1M8.75 11.25l-1 1a2.48 2.48 0 01-3.5-3.5l1-1" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg><svg id="copy-done" class="icon" viewBox="0 0 16 16" aria-hidden="true" hidden><path d="M3.5 8.25l3 3 6-6.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
     <button id="details-close" class="control square" type="button" data-label="close"><svg class="icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M4.5 4.5l7 7M11.5 4.5l-7 7" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
   </div>
@@ -843,7 +845,7 @@ const STRINGS = {
   en: {
     canvas: 'Database diagram', diagramMenu: 'Diagram', statusMenu: 'Table status', search: 'Table',
     searchLabel: 'Find a table', zoom: 'Zoom', zoomOut: 'Zoom out', zoomIn: 'Zoom in', fit: 'Fit',
-    details: 'Table details', copyLink: 'Copy link', copied: 'Link copied', close: 'Close',
+    details: 'Table details', comment: 'Comment', copyLink: 'Copy link', copied: 'Link copied', close: 'Close',
     columns: 'Columns', incoming: 'Referenced by', notFound: 'Not found', required: 'required',
     allTables: 'All tables', failure: 'The diagram did not open.',
     modeMenu: 'Columns shown', modeAll: 'All columns', modeKeys: 'Keys only', minimap: 'Diagram map',
@@ -856,7 +858,7 @@ const STRINGS = {
   ru: {
     canvas: 'Схема базы', diagramMenu: 'Диаграмма', statusMenu: 'Статус таблиц', search: 'Таблица',
     searchLabel: 'Поиск таблицы', zoom: 'Масштаб', zoomOut: 'Уменьшить', zoomIn: 'Увеличить', fit: 'Весь вид',
-    details: 'Описание таблицы', copyLink: 'Скопировать ссылку', copied: 'Ссылка скопирована', close: 'Закрыть',
+    details: 'Описание таблицы', comment: 'Комментарий', copyLink: 'Скопировать ссылку', copied: 'Ссылка скопирована', close: 'Закрыть',
     columns: 'Столбцы', incoming: 'Ссылаются сюда', notFound: 'Не найдено', required: 'обязательный',
     allTables: 'Все таблицы', failure: 'Схема не открылась.',
     modeMenu: 'Какие столбцы показать', modeAll: 'Все столбцы', modeKeys: 'Только ключи', minimap: 'Карта схемы',
@@ -1499,6 +1501,7 @@ function draw() {
       }
     }
     drawMinimap(x0, y0, x1, y1);
+    reportPins();                                     // метки комментариев — за схемой
   }
 }
 
@@ -1880,7 +1883,13 @@ canvas.addEventListener('pointermove', (event) => {
 canvas.addEventListener('pointerup', (event) => {
   if (!drag) return;
   view.hover = tableAt(event.clientX, event.clientY);
-  if (!drag.moved) select(view.hover);                // нажатие: выбрать таблицу или снять выбор
+  if (!drag.moved && comments.mode) {                 // режим комментариев: нажатие на таблицу или строку — комментарий к ней
+    if (view.hover >= 0) {
+      const hit = rowAt(event.clientX, event.clientY, view.hover), t = view.diagram.tables[view.hover];
+      select(view.hover);
+      startComment(t.id, hit ? t.columns[hit.row][0] : null, { x: event.clientX + window.scrollX, y: event.clientY + window.scrollY });
+    }
+  } else if (!drag.moved) select(view.hover);         // нажатие: выбрать таблицу или снять выбор
   requestDraw();
   drag = null;
   canvas.classList.remove('panning');
@@ -1963,6 +1972,107 @@ function runExport(row, run, done, failed) {          // итог — серым
     if (error && error.code === 'declined') { closeMenu(); return; }   // человек сам отказался сохранять
     console.error('export:', error);
     report(failed);
+  });
+}
+
+// ---------- комментарии claude.ai: к таблице или столбцу ----------
+// Схема — один холст, и claude.ai сам не привяжет комментарий к таблице: страница даёт ему свои якоря.
+// Якорь — имя: «schema.table» для таблицы, «schema.table.column» для столбца. Это имя Claude и читает как место
+// комментария. Метки рисует claude.ai; страница говорит, где они, при каждой отрисовке. Есть только в артефакте.
+const comments = {
+  anchors: null,            // управление якорями от claude.ai; null — комментировать здесь нельзя
+  mode: false,              // включён режим комментариев claude.ai: нажатие на таблицу открывает комментарий
+  threads: [],              // ветки, которые claude.ai показывает на этой странице: { id, anchor }
+  composer: null,           // якорь открытого окна нового комментария — оно едет вместе со своей таблицей
+  reported: '',             // последнее сообщённое положение меток: одинаковое не отправляется
+};
+const ANCHOR_MAX_BYTES = 128;
+const commentButton = document.getElementById('details-comment');
+
+function anchorOf(tableId, column = null) {          // имя якоря; слишком длинное claude.ai не примет
+  const anchor = column === null ? tableId : `${tableId}.${column}`;
+  return new TextEncoder().encode(anchor).length <= ANCHOR_MAX_BYTES ? anchor : null;
+}
+function parseAnchor(anchor) {                        // { table, column } для своего якоря, иначе null
+  if (TABLES[anchor]) return { table: anchor, column: null };
+  const dot = anchor.lastIndexOf('.');
+  const table = TABLES[anchor.slice(0, dot)], column = anchor.slice(dot + 1);
+  return dot > 0 && table && table.columns.some((c) => c[0] === column) ? { table: anchor.slice(0, dot), column } : null;
+}
+function anchorLabel({ table, column }) {             // подпись места в окне комментария и для Claude
+  const t = TABLES[table];
+  return column !== null ? `${t.name}.${column}` : t.title ? `${t.name} — ${t.title}` : t.name;
+}
+// где метка этого якоря на странице: у правого края заголовка таблицы или у строки столбца;
+// null — таблицы нет в открытой диаграмме или она за краем схемы, тогда ветка остаётся в списке claude.ai
+function anchorPoint({ table, column }) {
+  const index = view.diagram.indexById.get(table);
+  if (index === undefined) return null;
+  const t = view.diagram.tables[index];
+  const row = column === null ? -1 : t.columns.findIndex((c) => c[0] === column);   // в виде «только ключи» столбца может не быть
+  const x = (t.x + CARD.width) * view.zoom + view.tx - 12;
+  const y = (row < 0 ? t.y + CARD.head / 2 : t.y + CARD.head + (row + 0.5) * CARD.row) * view.zoom + view.ty;
+  if (x < 0 || x > view.width || y < topInset || y > view.height) return null;
+  return { x: x + window.scrollX, y: y + window.scrollY };
+}
+function reportPins() {                               // после каждой отрисовки и каждого нового списка веток
+  if (!comments.anchors) return;
+  const map = {};
+  for (const thread of comments.threads) {
+    const own = parseAnchor(thread.anchor);
+    if (own) map[thread.id] = anchorPoint(own);       // чужие якоря (не наши имена) остаются в списке claude.ai
+  }
+  if (comments.composer !== null) {
+    const own = parseAnchor(comments.composer);
+    map.composer = own ? anchorPoint(own) : null;
+  }
+  const key = JSON.stringify(map);
+  if (key === comments.reported) return;
+  comments.reported = key;
+  comments.anchors.placed(map);
+}
+function startComment(tableId, column, at) {          // окно нового комментария у таблицы или столбца
+  const anchor = anchorOf(tableId, column);
+  if (!comments.anchors || anchor === null) return;
+  const own = parseAnchor(anchor);
+  comments.anchors.compose(anchor, anchorPoint(own) || at, { label: anchorLabel(own) }).then((result) => {
+    if (result.opened) comments.composer = anchor;
+  }, (error) => console.error('comment:', error));
+}
+commentButton.addEventListener('click', () => {
+  if (view.selected >= 0) startComment(view.diagram.tables[view.selected].id, null, commentButton);
+});
+function connectComments() {                          // claude.ai отдаёт якоря только артефакту, где это объявлено
+  if (!(window.claude && window.claude.use)) return;
+  window.claude.use('comments').then((namespace) => namespace && namespace.customAnchors({
+    mode(on) {
+      comments.mode = on;
+      canvas.classList.toggle('commenting', on);
+      if (!on) comments.threads = [];
+      comments.reported = '';
+      requestDraw();
+    },
+    threads(list) {
+      comments.threads = list;
+      comments.reported = '';
+      reportPins();
+    },
+    reveal(id) {                                      // нажали на ветку в списке claude.ai — показать её таблицу
+      const thread = comments.threads.find((t) => t.id === id);
+      const own = thread && parseAnchor(thread.anchor);
+      if (own) goToTable(own.table);
+    },
+    composing(open) {
+      if (!open) comments.composer = null;
+      requestDraw();
+    },
+  })).then((anchors) => {
+    if (!anchors) return;
+    comments.anchors = anchors;
+    commentButton.hidden = false;
+    reportPins();
+  }, (error) => {
+    if (!['not_granted', 'capability_disabled', 'capability_removed'].includes(error && error.code)) console.error('comments:', error);
   });
 }
 
@@ -2107,6 +2217,7 @@ function start() {
   buildExportMenu();
   resize();
   openAddress(location.hash.slice(1));
+  connectComments();
   window.addEventListener('resize', resize);
   new ResizeObserver(resize).observe(topLeft);        // название диаграммы меняет ширину меню — и место для поиска
   window.addEventListener('hashchange', () => openAddress(location.hash.slice(1)));
