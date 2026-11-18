@@ -80,7 +80,7 @@
   #canvas { position: fixed; inset: 0; display: block; width: 100%; height: 100%; touch-action: none; cursor: grab; }
   #canvas.over-table { cursor: pointer; }
   #canvas.panning { cursor: grabbing; }
-  #canvas.commenting, #canvas.commenting.over-table { cursor: crosshair; }   /* режим комментариев claude.ai */
+  #canvas.commenting { cursor: crosshair; }           /* режим комментариев claude.ai; правило ниже .over-table и главнее */
   .panel {
     position: fixed;
     padding: var(--space-1);
@@ -99,12 +99,9 @@
   #diagram-panel { flex: 0 1 auto; min-width: 0; max-width: var(--menu-width); }
   .divider { flex: none; width: 1px; height: var(--space-4); margin: 0 var(--space-1); background: var(--color-border); }
   /* Список всплывает под своей кнопкой поверх схемы и не меняет размер панели. */
-  .popover {
+  .popover {                                          /* вид — от .panel, здесь только место */
     position: absolute; top: calc(100% + var(--space-2)); left: calc(-1 * var(--space-1) - 1px);
-    min-width: 100%; width: max-content; max-width: var(--menu-width);
-    margin: 0; padding: var(--space-1);
-    background: var(--color-panel); border: 1px solid var(--color-border); border-radius: var(--radius-outer);
-    box-shadow: var(--shadow-overlay);
+    min-width: 100%; width: max-content; max-width: var(--menu-width); margin: 0;
   }
   #search-panel { width: var(--search-width); max-width: calc(100vw - 2 * var(--edge-left)); }
   #zoom-panel { right: var(--edge-right); bottom: var(--edge-bottom); display: flex; gap: var(--space-1); }
@@ -128,10 +125,10 @@
      только цвет: панель с кнопками остаётся одним сплошным элементом. */
   li > .control, .trigger { width: 100%; }
   li > .control:hover, .control[aria-current] { background: var(--color-row-hover); }
-  .square, .quiet { color: var(--color-text-muted); }
+  .square, #zoom-fit { color: var(--color-text-muted); }
   .control:hover, .control:hover .chevron { color: var(--color-text); }
   /* включённый вид (только ключи) и включённый фильтр — кнопка нажата, как инструмент в Figma */
-  .square[aria-pressed="true"], .square[data-active] { background: var(--color-row-hover); color: var(--color-text); }
+  .square[aria-pressed="true"] { background: var(--color-row-hover); color: var(--color-text); }
   .control:focus-visible { outline: 2px solid var(--color-accent); outline-offset: -2px; }
   .square { width: var(--control-height); justify-content: center; padding: 0; }
   /* у поиска фокус показывает вся панель: поле внутри своей рамки не рисует */
@@ -141,6 +138,8 @@
   @media (max-height: 559px) { #minimap-panel { display: none; } }   /* в низком окне она закрывала бы таблицы */
   #minimap { display: block; width: var(--minimap-width); height: var(--minimap-height); border-radius: var(--radius-inner); cursor: pointer; touch-action: none; }
   .icon { flex: none; width: var(--icon-size); height: var(--icon-size); }
+  /* значки Lucide: сетка 24, линия 2, скруглённые концы */
+  .icon, .chevron { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
   .search-row { display: flex; align-items: center; gap: var(--space-2); padding: 0 var(--space-2); color: var(--color-text-muted); }
   .search-row input { padding-left: 0; color: var(--color-text); }
   .secondary {
@@ -244,27 +243,27 @@
   <div id="diagram-panel" class="tool">
     <button id="menu-button" class="control trigger" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="menu">
       <span id="menu-label" class="label"></span>
-      <svg class="chevron" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+      <svg class="chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
     </button>
-    <ul id="menu" class="popover" hidden></ul>
+    <ul id="menu" class="panel popover" hidden></ul>
   </div>
   <span class="divider" aria-hidden="true"></span>
   <div id="status-panel" class="tool">
-    <button id="status-button" class="control square" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="status-menu"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 5h20"/><path d="M6 12h12"/><path d="M9 19h6"/></svg></button>
-    <ul id="status-menu" class="popover" hidden></ul>
+    <button id="status-button" class="control square" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="status-menu"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M2 5h20"/><path d="M6 12h12"/><path d="M9 19h6"/></svg></button>
+    <ul id="status-menu" class="panel popover" hidden></ul>
   </div>
   <div class="tool">
-    <button id="mode-button" class="control square" type="button" aria-pressed="false" data-label="modeKeys" data-title="modeKeysHint"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.586 17.414A2 2 0 0 0 2 18.828V21a1 1 0 0 0 1 1h3a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h1a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h.172a2 2 0 0 0 1.414-.586l.814-.814a6.5 6.5 0 1 0-4-4z"/><circle cx="16.5" cy="7.5" r=".5" fill="currentColor"/></svg></button>
+    <button id="mode-button" class="control square" type="button" aria-pressed="false" data-label="modeKeys" data-title="modeKeysHint"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M2.586 17.414A2 2 0 0 0 2 18.828V21a1 1 0 0 0 1 1h3a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h1a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h.172a2 2 0 0 0 1.414-.586l.814-.814a6.5 6.5 0 1 0-4-4z"/><circle cx="16.5" cy="7.5" r=".5" fill="currentColor"/></svg></button>
   </div>
   <div id="export-panel" class="tool">
-    <button id="export-button" class="control square" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="export-menu" data-label="exportMenu" data-title="exportMenu"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v13"/><path d="m16 6-4-4-4 4"/><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/></svg></button>
-    <ul id="export-menu" class="popover" hidden></ul>
+    <button id="export-button" class="control square" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="export-menu" data-label="exportMenu" data-title="exportMenu"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2v13"/><path d="m16 6-4-4-4 4"/><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/></svg></button>
+    <ul id="export-menu" class="panel popover" hidden></ul>
   </div>
   <div class="tool">
-    <button id="search-button" class="control square" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="search-panel" aria-keyshortcuts="/ Meta+K Control+K" data-label="searchLabel" data-title="searchHint"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/></svg></button>
-    <div id="search-panel" class="popover" role="search" hidden>
+    <button id="search-button" class="control square" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="search-panel" aria-keyshortcuts="/ Meta+K Control+K" data-label="searchLabel" data-title="searchHint"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/></svg></button>
+    <div id="search-panel" class="panel popover" role="search" hidden>
       <div class="search-row">
-        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/></svg>
+        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/></svg>
         <input id="search" type="search" data-placeholder="search" data-label="searchLabel" autocomplete="off" spellcheck="false">
       </div>
       <ul id="results" hidden></ul>
@@ -276,17 +275,17 @@
 
 
 <div id="zoom-panel" class="panel" role="group" data-label="zoom">
-  <button id="zoom-out" class="control square" type="button" data-label="zoomOut"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/></svg></button>
-  <button id="zoom-fit" class="control quiet" type="button" data-label="fit" data-title="fit"></button>
-  <button id="zoom-in" class="control square" type="button" data-label="zoomIn"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg></button>
+  <button id="zoom-out" class="control square" type="button" data-label="zoomOut"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"/></svg></button>
+  <button id="zoom-fit" class="control" type="button" data-label="fit" data-title="fit"></button>
+  <button id="zoom-in" class="control square" type="button" data-label="zoomIn"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"/><path d="M12 5v14"/></svg></button>
 </div>
 
 <aside id="details" class="panel" data-label="details" hidden>
   <div id="details-top">
     <h2 id="details-name"></h2>
-    <button id="details-comment" class="control square" type="button" data-label="comment" data-title="comment" hidden><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 17a2 2 0 0 1-2 2H6.828a2 2 0 0 0-1.414.586l-2.202 2.202A.71.71 0 0 1 2 21.286V5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2z"/></svg></button>
-    <button id="details-copy" class="control square" type="button" data-label="copyLink" data-title="copyLink"><svg id="copy-link" class="icon" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg><svg id="copy-done" class="icon" viewBox="0 0 24 24" aria-hidden="true" hidden fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></button>
-    <button id="details-close" class="control square" type="button" data-label="close"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>
+    <button id="details-comment" class="control square" type="button" data-label="comment" data-title="comment" hidden><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M22 17a2 2 0 0 1-2 2H6.828a2 2 0 0 0-1.414.586l-2.202 2.202A.71.71 0 0 1 2 21.286V5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2z"/></svg></button>
+    <button id="details-copy" class="control square" type="button" data-label="copyLink" data-title="copyLink"><svg id="copy-link" class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg><svg id="copy-done" class="icon" viewBox="0 0 24 24" aria-hidden="true" hidden><path d="M20 6 9 17l-5-5"/></svg></button>
+    <button id="details-close" class="control square" type="button" data-label="close"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>
   </div>
   <div id="details-body">
     <p id="details-title"></p>
@@ -839,7 +838,7 @@ const { PK, FK, NULLABLE } = FLAG;   // пометки столбца, как и
 // Interface strings. The language comes from the embedded data ("lang"); a new language is one more entry here.
 const STRINGS = {
   en: {
-    canvas: 'Database diagram', toolbar: 'Diagram tools', diagramMenu: 'Diagram', statusMenu: 'Table status', search: 'Table', searchHint: 'Find a table  /',
+    canvas: 'Database diagram', toolbar: 'Diagram tools', statusMenu: 'Table status', search: 'Table', searchHint: 'Find a table  /',
     searchLabel: 'Find a table', zoom: 'Zoom', zoomOut: 'Zoom out', zoomIn: 'Zoom in', fit: 'Fit',
     details: 'Table details', comment: 'Comment', copyLink: 'Copy link', copied: 'Link copied', close: 'Close',
     columns: 'Columns', incoming: 'Referenced by', notFound: 'Not found', required: 'required',
@@ -853,7 +852,7 @@ const STRINGS = {
     statusHint: { new: 'Tables the database does not have yet', changed: 'Tables that exist and change', same: 'Tables that stay as they are' },
   },
   ru: {
-    canvas: 'Схема базы', toolbar: 'Инструменты схемы', diagramMenu: 'Диаграмма', statusMenu: 'Статус таблиц', search: 'Таблица', searchHint: 'Поиск таблицы  /',
+    canvas: 'Схема базы', toolbar: 'Инструменты схемы', statusMenu: 'Статус таблиц', search: 'Таблица', searchHint: 'Поиск таблицы  /',
     searchLabel: 'Поиск таблицы', zoom: 'Масштаб', zoomOut: 'Уменьшить', zoomIn: 'Увеличить', fit: 'Весь вид',
     details: 'Описание таблицы', comment: 'Комментарий', copyLink: 'Скопировать ссылку', copied: 'Ссылка скопирована', close: 'Закрыть',
     columns: 'Столбцы', incoming: 'Ссылаются сюда', notFound: 'Не найдено', required: 'обязательный',
@@ -890,8 +889,8 @@ const NAME_MIN_CARD_PX = 64;         // имя в шапке — когда ка
 const SMALL_NAME_PX = 9;             // размер этого имени на экране, пока строки без текста
 const AREA_FONT_PX = 13;           // название модуля — постоянного размера на экране
 const AREA_LABEL_MIN_PX = 40;        // у области уже этого на экране подписи нет
-// место под панели сверху и верх диаграммы на общем виде (ещё строка подписей областей): меряется по самим
-// панелям в resize(), а не повторяет их высоты числами
+// место под панелью инструментов и верх диаграммы на общем виде (ещё строка подписей областей): меряется по самой
+// панели в resize(), а не повторяет её высоту числами
 let topInset = 0, fitTop = 0;
 const BOTTOM_INSET = 64;             // место под кнопки масштаба снизу
 const EDGE_INSET = 24;
@@ -1500,7 +1499,7 @@ function draw() {
     }
     drawMinimap(x0, y0, x1, y1);
     const percent = `${Math.round(zoom * 100)}%`;     // масштаб на кнопке «весь вид»
-    if (zoomFit.textContent !== percent) zoomFit.textContent = percent;
+    if (percent !== zoomShown) zoomFit.textContent = zoomShown = percent;
     reportPins();                                     // метки комментариев — за схемой
   }
 }
@@ -1582,6 +1581,8 @@ function zoomAt(x, y, factor) {                       // масштаб к то�
   keepInView();
   requestDraw();
 }
+const toScreen = (x, y) => [x * view.zoom + view.tx, y * view.zoom + view.ty];   // точка схемы → точка окна
+const pagePoint = (x, y) => ({ x: x + window.scrollX, y: y + window.scrollY });     // точка окна → точка страницы
 function tableAt(x, y) {
   if (!view.diagram) return -1;
   const wx = (x - view.tx) / view.zoom, wy = (y - view.ty) / view.zoom;
@@ -1661,8 +1662,6 @@ copyButton.addEventListener('click', () => {
   });
 });
 
-// ---------- меню выбора: статус таблиц и какие столбцы показать ----------
-// Одна форма для обоих: панель с кнопкой (текущий выбор) и список вариантов, у варианта может быть число.
 // ---------- меню ----------
 // Выпадающее меню — кнопка и список под ней. dropdown() его регистрирует: открыть одно — значит закрыть остальные.
 const MENUS = [];
@@ -1670,14 +1669,14 @@ function setMenuOpen(button, list, open) {
   list.hidden = !open;
   button.setAttribute('aria-expanded', String(open));
 }
-function dropdown(button, list, onOpen = () => {}) {
+function openMenu(button, list, onOpen = () => {}) {
+  closeMenu();
+  setMenuOpen(button, list, true);
+  onOpen();
+}
+function dropdown(button, list, onOpen) {
   MENUS.push([button, list]);
-  button.addEventListener('click', () => {
-    const open = list.hidden;
-    closeMenu();
-    setMenuOpen(button, list, open);
-    if (open) onOpen();
-  });
+  button.addEventListener('click', () => (list.hidden ? openMenu(button, list, onOpen) : closeMenu()));
 }
 function closeMenu() {
   for (const [button, list] of MENUS) setMenuOpen(button, list, false);
@@ -1701,57 +1700,35 @@ function menuAction(label, secondary, onClick) {       // пункт-кнопк�
   return listItem(row);
 }
 
-function picker(name, onPick) {
-  const panel = document.getElementById(`${name}-panel`);
-  const button = document.getElementById(`${name}-button`);
-  const list = document.getElementById(`${name}-menu`);
-  dropdown(button, list);
-  return {
-    // choices: [{ value, label, count, hint }] (count — число или null, hint — подсказка при наведении или нет),
-    // первый — без фильтра; visible — показывать ли вообще.
-    // Кнопка-значок говорит выбор подсказкой и нажатым видом, кнопка со словом — самим словом.
-    show(choices, current, visible) {
-      panel.hidden = !visible;
-      const chosen = choices.find((c) => c.value === current).label, label = document.getElementById(`${name}-label`);
-      if (label) label.textContent = chosen;
-      else {
-        button.toggleAttribute('data-active', current !== choices[0].value);
-        button.title = `${TEXT[`${name}Menu`]}: ${chosen}`;
-        button.setAttribute('aria-label', button.title);
-      }
-      list.replaceChildren(...choices.map(({ value, label, count, hint }) => {
-        const item = menuAction(label, count, () => { closeMenu(); onPick(value); });
-        if (hint) item.firstChild.title = hint;
-        if (value === current) item.firstChild.setAttribute('aria-current', 'true');
-        return item;
-      }));
-    },
-  };
-}
-
-// статус: таблицы с выбранным статусом видны, остальные приглушены
-const statusPicker = picker('status', (status) => { view.status = status; buildStatusMenu(); requestDraw(); });
+// ---------- статус таблиц: с выбранным статусом видны, остальные приглушены ----------
+const statusButton = document.getElementById('status-button'), statusMenu = document.getElementById('status-menu');
+dropdown(statusButton, statusMenu);
 function buildStatusMenu() {                          // пункты — только статусы, которые есть в этой диаграмме
-  const counts = view.diagram.byStatus;
-  const names = TEXT.statusFilter;
+  const counts = view.diagram.byStatus, names = TEXT.statusFilter;
   const present = Object.keys(names).filter((status) => counts[status].count > 0);
   if (view.status !== null && !present.includes(view.status)) view.status = null;
-  statusPicker.show([{ value: null, label: TEXT.allTables, count: null },
-    ...present.map((status) => ({ value: status, label: names[status], count: counts[status].count, hint: TEXT.statusHint[status] }))],
-  view.status, present.length >= 2);                  // один статус — фильтровать нечего
+  document.getElementById('status-panel').hidden = present.length < 2;   // один статус — фильтровать нечего
+  // кнопка — значок: выбор говорят подсказка и нажатый вид
+  statusButton.title = `${TEXT.statusMenu}: ${view.status === null ? TEXT.allTables : names[view.status]}`;
+  statusButton.setAttribute('aria-label', statusButton.title);
+  statusButton.setAttribute('aria-pressed', String(view.status !== null));
+  const choices = [[null, TEXT.allTables, null, ''], ...present.map((status) => [status, names[status], counts[status].count, TEXT.statusHint[status]])];
+  statusMenu.replaceChildren(...choices.map(([value, label, count, hint]) => {
+    const item = menuAction(label, count, () => { closeMenu(); view.status = value; buildStatusMenu(); requestDraw(); });
+    if (hint) item.firstChild.title = hint;
+    if (value === view.status) item.firstChild.setAttribute('aria-current', 'true');
+    return item;
+  }));
 }
 
 // столбцы: все или только ключи (первичный ключ и оба конца каждой связи) — у каждой диаграммы два вида
 const modeButton = document.getElementById('mode-button');
 modeButton.addEventListener('click', () => setMode(view.mode === 'keys' ? 'all' : 'keys'));
-function buildModeMenu() {                            // кнопка «только ключи» нажата, пока включён этот вид
-  modeButton.setAttribute('aria-pressed', String(view.mode === 'keys'));
-}
 function setMode(mode) {                              // та же диаграмма в другом виде; выбранная таблица остаётся
   if (mode === view.mode) return;
   const selectedId = view.selected >= 0 ? view.diagram.tables[view.selected].id : null;
   view.mode = mode;
-  buildModeMenu();
+  modeButton.setAttribute('aria-pressed', String(mode === 'keys'));   // кнопка нажата, пока включён вид «только ключи»
   openDiagram(view.diagram.code);
   if (selectedId !== null) showTable(view.diagram.indexById.get(selectedId));
 }
@@ -1845,8 +1822,7 @@ function updateTip(hit) {
     document.getElementById('tip-name').textContent = column[0];
     document.getElementById('tip-note').textContent = column[3];
     tip.hidden = false;
-    const left = t.x * view.zoom + view.tx, right = left + CARD.width * view.zoom;
-    const rowTop = (t.y + CARD.head + row * CARD.row) * view.zoom + view.ty;
+    const [left, rowTop] = toScreen(t.x, t.y + CARD.head + row * CARD.row), right = left + CARD.width * view.zoom;
     let tipX = right + 8;                             // справа от карточки; не помещается — слева; иначе у края окна
     if (tipX + tip.offsetWidth > view.width - 8) tipX = left - 8 - tip.offsetWidth;
     tip.style.left = Math.max(8, Math.min(tipX, view.width - 8 - tip.offsetWidth)) + 'px';
@@ -1889,11 +1865,11 @@ canvas.addEventListener('pointermove', (event) => {
 canvas.addEventListener('pointerup', (event) => {
   if (!drag) return;
   view.hover = tableAt(event.clientX, event.clientY);
-  if (!drag.moved && comments.mode) {                 // режим комментариев: нажатие на таблицу или строку — комментарий к ней
+  if (!drag.moved && canvas.classList.contains('commenting')) {   // режим комментариев: нажатие — комментарий к таблице или строке
     if (view.hover >= 0) {
       const hit = rowAt(event.clientX, event.clientY, view.hover), t = view.diagram.tables[view.hover];
       select(view.hover);
-      startComment(t.id, hit ? t.columns[hit.row][0] : null, { x: event.clientX + window.scrollX, y: event.clientY + window.scrollY });
+      startComment({ table: t.id, column: hit ? t.columns[hit.row][0] : null }, pagePoint(event.clientX, event.clientY));
     }
   } else if (!drag.moved) select(view.hover);         // нажатие: выбрать таблицу или снять выбор
   requestDraw();
@@ -1934,6 +1910,7 @@ canvas.addEventListener('gesturechange', (event) => {
 document.getElementById('zoom-in').addEventListener('click', () => zoomAt(view.width / 2, view.height / 2, ZOOM_STEP));
 document.getElementById('zoom-out').addEventListener('click', () => zoomAt(view.width / 2, view.height / 2, 1 / ZOOM_STEP));
 const zoomFit = document.getElementById('zoom-fit');
+let zoomShown = '';
 zoomFit.addEventListener('click', fit);
 
 // ---------- выгрузка: DBML и SQL — в буфер обмена или файлом ----------
@@ -1942,6 +1919,8 @@ zoomFit.addEventListener('click', fit);
 const exportButton = document.getElementById('export-button');
 const exportMenu = document.getElementById('export-menu');
 dropdown(exportButton, exportMenu);
+// возможность артефакта claude.ai (скачивание, комментарии); null — её здесь нет, в том числе в обычном файле
+const capability = (name) => (window.claude && window.claude.use ? window.claude.use(name) : Promise.resolve(null));
 let saveFile = null;                                  // (имя, текст) → Promise; null — скачать нельзя
 if (window.self === window.top) {                     // своя страница: обычная загрузка браузера
   saveFile = (name, text) => {
@@ -1952,8 +1931,8 @@ if (window.self === window.top) {                     // своя страниц
     setTimeout(() => URL.revokeObjectURL(link.href), 1000);   // сразу — Safari не успевает начать загрузку
     return Promise.resolve();
   };
-} else if (window.claude && window.claude.use) {      // артефакт: файл отдаёт claude.ai, человек подтверждает
-  window.claude.use('downloads').then((downloads) => {
+} else {                                              // артефакт: файл отдаёт claude.ai, человек подтверждает
+  capability('downloads').then((downloads) => {
     if (!downloads) return;
     saveFile = (name, text) => downloads.save({ filename: `${name}.txt`, data: text });
     if (SOURCE) buildExportMenu();                   // схема уже прочитана — меню пересобирается
@@ -1988,23 +1967,21 @@ function runExport(row, run, done, failed) {          // итог — серым
 // комментария. Метки рисует claude.ai; страница говорит, где они, при каждой отрисовке. Есть только в артефакте.
 const comments = {
   anchors: null,            // управление якорями от claude.ai; null — комментировать здесь нельзя
-  mode: false,              // включён режим комментариев claude.ai: нажатие на таблицу открывает комментарий
-  threads: [],              // ветки, которые claude.ai показывает на этой странице: { id, anchor }
-  composer: null,           // якорь открытого окна нового комментария — оно едет вместе со своей таблицей
+  threads: [],              // ветки claude.ai на этой странице: { id, own } — own: { table, column }, null у чужого якоря
+  composer: null,           // { table, column } открытого окна нового комментария — оно едет вместе со своей таблицей
   reported: '',             // последнее сообщённое положение меток: одинаковое не отправляется
 };
-const ANCHOR_MAX_BYTES = 128;
+const ANCHOR_MAX_BYTES = 128, utf8 = new TextEncoder();
 const commentButton = document.getElementById('details-comment');
 
-function anchorOf(tableId, column = null) {          // имя якоря; слишком длинное claude.ai не примет
-  const anchor = column === null ? tableId : `${tableId}.${column}`;
-  return new TextEncoder().encode(anchor).length <= ANCHOR_MAX_BYTES ? anchor : null;
-}
+const anchorName = ({ table, column }) => (column === null ? table : `${table}.${column}`);
 function parseAnchor(anchor) {                        // { table, column } для своего якоря, иначе null
   if (TABLES[anchor]) return { table: anchor, column: null };
-  const dot = anchor.lastIndexOf('.');
-  const table = TABLES[anchor.slice(0, dot)], column = anchor.slice(dot + 1);
-  return dot > 0 && table && table.columns.some((c) => c[0] === column) ? { table: anchor.slice(0, dot), column } : null;
+  // в id таблицы и в имени столбца могут быть точки: берётся самый длинный id, с которого начинается якорь
+  let table = null;
+  for (const id in TABLES) if (anchor.startsWith(`${id}.`) && (table === null || id.length > table.length)) table = id;
+  const column = table === null ? null : anchor.slice(table.length + 1);
+  return table !== null && TABLES[table].columns.some((c) => c[0] === column) ? { table, column } : null;
 }
 function anchorLabel({ table, column }) {             // подпись места в окне комментария и для Claude
   const t = TABLES[table];
@@ -2017,70 +1994,64 @@ function anchorPoint({ table, column }) {
   if (index === undefined) return null;
   const t = view.diagram.tables[index];
   const row = column === null ? -1 : t.columns.findIndex((c) => c[0] === column);   // в виде «только ключи» столбца может не быть
-  const x = (t.x + CARD.width) * view.zoom + view.tx - 12;
-  const y = (row < 0 ? t.y + CARD.head / 2 : t.y + CARD.head + (row + 0.5) * CARD.row) * view.zoom + view.ty;
-  if (x < 0 || x > view.width || y < topInset || y > view.height) return null;
-  return { x: x + window.scrollX, y: y + window.scrollY };
+  const [x, y] = toScreen(t.x + CARD.width, row < 0 ? t.y + CARD.head / 2 : t.y + CARD.head + (row + 0.5) * CARD.row);
+  if (x - 12 < 0 || x > view.width || y < topInset || y > view.height) return null;
+  return pagePoint(x - 12, y);
 }
 function reportPins() {                               // после каждой отрисовки и каждого нового списка веток
   if (!comments.anchors) return;
   const map = {};
-  for (const thread of comments.threads) {
-    const own = parseAnchor(thread.anchor);
-    if (own) map[thread.id] = anchorPoint(own);       // чужие якоря (не наши имена) остаются в списке claude.ai
-  }
-  if (comments.composer !== null) {
-    const own = parseAnchor(comments.composer);
-    map.composer = own ? anchorPoint(own) : null;
-  }
+  for (const { id, own } of comments.threads) if (own) map[id] = anchorPoint(own);   // чужие якоря — в списке claude.ai
+  if (comments.composer) map.composer = anchorPoint(comments.composer);
   const key = JSON.stringify(map);
   if (key === comments.reported) return;
   comments.reported = key;
   comments.anchors.placed(map);
 }
-function startComment(tableId, column, at) {          // окно нового комментария у таблицы или столбца
-  const anchor = anchorOf(tableId, column);
-  if (!comments.anchors || anchor === null) return;
-  const own = parseAnchor(anchor);
+function startComment(own, at) {                      // окно нового комментария у таблицы или столбца; at — запасное место
+  const anchor = anchorName(own);
+  if (utf8.encode(anchor).length > ANCHOR_MAX_BYTES) {
+    console.error(`comment: the place ${anchor} is longer than claude.ai takes (${ANCHOR_MAX_BYTES} bytes)`);
+    return;
+  }
   comments.anchors.compose(anchor, anchorPoint(own) || at, { label: anchorLabel(own) }).then((result) => {
-    if (result.opened) comments.composer = anchor;
+    if (result.opened) comments.composer = own;
   }, (error) => console.error('comment:', error));
 }
 commentButton.addEventListener('click', () => {
-  if (view.selected >= 0) startComment(view.diagram.tables[view.selected].id, null, commentButton);
+  if (view.selected >= 0) startComment({ table: view.diagram.tables[view.selected].id, column: null }, commentButton);
 });
-function connectComments() {                          // claude.ai отдаёт якоря только артефакту, где это объявлено
-  if (!(window.claude && window.claude.use)) return;
-  window.claude.use('comments').then((namespace) => namespace && namespace.customAnchors({
-    mode(on) {
-      comments.mode = on;
-      canvas.classList.toggle('commenting', on);
-      if (!on) comments.threads = [];
-      comments.reported = '';
-      requestDraw();
-    },
-    threads(list) {
-      comments.threads = list;
-      comments.reported = '';
-      reportPins();
-    },
-    reveal(id) {                                      // нажали на ветку в списке claude.ai — показать её таблицу
-      const thread = comments.threads.find((t) => t.id === id);
-      const own = thread && parseAnchor(thread.anchor);
-      if (own) goToTable(own.table);
-    },
-    composing(open) {
-      if (!open) comments.composer = null;
-      requestDraw();
-    },
-  })).then((anchors) => {
-    if (!anchors) return;
-    comments.anchors = anchors;
-    commentButton.hidden = false;
-    reportPins();
-  }, (error) => {
+async function connectComments() {                    // claude.ai отдаёт якоря только артефакту, где это объявлено
+  const namespace = await capability('comments');
+  if (!namespace) return;
+  try {
+    comments.anchors = await namespace.customAnchors({
+      mode(on) {
+        canvas.classList.toggle('commenting', on);   // этот класс и есть «режим включён»: его читает нажатие на холст
+        if (!on) comments.threads = [];
+        comments.reported = '';
+        requestDraw();
+      },
+      threads(list) {                                 // якоря разбираются здесь один раз, а не в каждом кадре
+        comments.threads = list.map(({ id, anchor }) => ({ id, own: parseAnchor(anchor) }));
+        comments.reported = '';
+        reportPins();
+      },
+      reveal(id) {                                    // нажали на ветку в списке claude.ai — показать её таблицу
+        const own = comments.threads.find((thread) => thread.id === id)?.own;
+        if (own) goToTable(own.table);
+      },
+      composing(open) {
+        if (!open) comments.composer = null;
+        requestDraw();
+      },
+    });
+  } catch (error) {
     if (!['not_granted', 'capability_disabled', 'capability_removed'].includes(error && error.code)) console.error('comments:', error);
-  });
+    return;
+  }
+  commentButton.hidden = false;
+  reportPins();
 }
 
 // ---------- выбор диаграммы ----------
@@ -2182,9 +2153,7 @@ document.addEventListener('keydown', (event) => {     // «/» и Cmd+K (Ctrl+K)
   const typing = event.target instanceof HTMLInputElement;
   if ((event.key === '/' && !typing) || (event.key.toLowerCase() === 'k' && (event.metaKey || event.ctrlKey))) {
     event.preventDefault();
-    closeMenu();
-    setMenuOpen(searchButton, searchPanel, true);
-    focusSearch();
+    openMenu(searchButton, searchPanel, focusSearch);
   }
 });
 document.addEventListener('keydown', (event) => {
@@ -2225,7 +2194,6 @@ function start() {
   }
   readTheme();
   buildMenu();
-  buildModeMenu();
   buildExportMenu();
   resize();
   openAddress(location.hash.slice(1));
