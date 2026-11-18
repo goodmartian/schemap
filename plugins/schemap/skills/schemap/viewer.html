@@ -1704,10 +1704,15 @@ function freeHeight() {                              // высота свобо�
   return view.height - (sheet ? details.offsetHeight + BOTTOM_INSET : 0);
 }
 function placeOn(t, zoom) {                           // сдвиг, при котором таблица t стоит посередине свободного места
-  const free = freeHeight();                          // колонка описания справа уже вычтена из холста
-  const tx = view.width / 2 - (t.x + CARD.width / 2) * zoom;
-  if (t.h * zoom > free - topInset - EDGE_INSET) return [tx, topInset + EDGE_INSET - t.y * zoom];   // высокая — верхом к верху
-  return [tx, topInset + (free - topInset) / 2 - (t.y + t.h / 2) * zoom];
+  const free = freeHeight(), [w, h] = view.diagram.size;   // колонка описания справа уже вычтена из холста
+  let tx = view.width / 2 - (t.x + CARD.width / 2) * zoom;
+  let ty = t.h * zoom > free - topInset - EDGE_INSET
+    ? topInset + EDGE_INSET - t.y * zoom              // высокая — верхом к верху
+    : topInset + (free - topInset) / 2 - (t.y + t.h / 2) * zoom;
+  // таблица у края схемы уходит из середины к этому краю: за краем пусто, показывать нечего
+  if (w * zoom > view.width - 2 * EDGE_INSET) tx = Math.min(EDGE_INSET, Math.max(view.width - EDGE_INSET - w * zoom, tx));
+  if (h * zoom > free - fitTop - BOTTOM_INSET) ty = Math.min(fitTop, Math.max(free - BOTTOM_INSET - h * zoom, ty));
+  return [tx, ty];
 }
 function showTable(index) {                           // выбрать таблицу и приблизить её до читаемых столбцов
   const t = view.diagram.tables[index];
