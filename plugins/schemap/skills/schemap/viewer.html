@@ -172,15 +172,17 @@
     /* открыта ли колонка — CSS читает с самой колонки (атрибут hidden), отдельного флага нет.
        У холста своя ширина в пикселях: «auto» её не растягивает, поэтому ширина задана явно. */
     body:has(#details:not([hidden])) #canvas { width: calc(100% - var(--details-width)); }
-    body:has(#details:not([hidden])) :is(#search-panel, #zoom-panel) { right: calc(var(--details-width) + var(--space-3)); }
+    body:has(#details:not([hidden])) :is(#search-panel, #zoom-panel, #top-left) { right: calc(var(--details-width) + var(--space-3)); }
+    body:has(#details:not([hidden])) #top-left .panel { min-width: 0; }   /* меню не уходят под колонку, а режутся многоточием */
   }
+  /* поиск — вторым рядом во всю ширину схемы, когда в ряду с меню ему нет места: узкое окно, открытая колонка
+     описания, длинное название диаграммы. Решает resize() по положению панелей, а не по ширине окна. */
+  body.search-below #search-panel { top: calc(var(--edge-top) + var(--bar-height) + var(--space-2)); left: var(--edge-left); width: auto; }
   @media (max-width: 719px) {
     #details {
       top: auto; left: var(--edge-left); right: var(--edge-right); bottom: var(--edge-bottom); width: auto; max-height: 50%;
       padding: 0; border: 1px solid var(--color-border); border-radius: var(--radius-outer); box-shadow: var(--shadow-overlay);
     }
-    /* в узком окне поиск — вторым рядом во всю ширину, чтобы не закрывал выбор диаграммы и статуса */
-    #search-panel { top: calc(var(--edge-top) + var(--bar-height) + var(--space-2)); left: var(--edge-left); width: auto; }
     #top-left { right: var(--edge-right); }            /* панели делят ряд; длинные названия режутся многоточием */
     #top-left .panel { min-width: 0; }
     #minimap-panel { display: none; }                  /* на телефоне мини-карте нет места рядом с описанием */
@@ -1352,7 +1354,11 @@ function draw() {
       const x = Math.round(Math.max(left + insetX, Math.min(12, right - labelW)));
       const home = inside ? top + inset : top - LABEL_H - 4;
       const y = Math.round(Math.min(Math.max(home, topInset), Math.max(home, bottom - LABEL_H - inset)));
-      let clash = false;                              // две подписи не пересекаются: вторая тогда не рисуется
+      // подпись не закрывает чужую область: при мелком масштабе промежуток между рядами ниже подписи
+      let clash = diagram.areas.some((other) => other !== area
+        && x < (other.x + other.w) * zoom + tx && x + labelW > other.x * zoom + tx
+        && y < (other.y + other.h) * zoom + ty && y + LABEL_H > other.y * zoom + ty);
+      // две подписи не пересекаются: вторая тогда не рисуется
       for (let n = 0; n < placed.length; n += 3) {
         if (x < placed[n] + placed[n + 2] && x + labelW > placed[n] && Math.abs(y - placed[n + 1]) < LABEL_H) clash = true;
       }
@@ -1416,7 +1422,10 @@ function resize() {
   view.height = window.innerHeight;
   canvas.width = Math.round(view.width * view.dpr);
   canvas.height = Math.round(view.height * view.dpr);
-  // ниже всех панелей сверху (в узком окне поиск стоит вторым рядом) и ещё отступ
+  // поиск сначала в ряду с меню; наезжает на них — уходит вторым рядом
+  document.body.classList.remove('search-below');
+  document.body.classList.toggle('search-below', searchPanel.getBoundingClientRect().left < topLeft.getBoundingClientRect().right + 8);
+  // ниже всех панелей сверху и ещё отступ
   topInset = Math.max(topLeft.getBoundingClientRect().bottom, searchPanel.getBoundingClientRect().bottom) + 12;
   fitTop = topInset + LABEL_H + 4;                    // на общем виде над областями ещё строка их подписей
   minimapShown = !minimapPanel.hidden && minimap.clientWidth > 0;
@@ -1924,6 +1933,7 @@ function start() {
   resize();
   openAddress(location.hash.slice(1));
   window.addEventListener('resize', resize);
+  new ResizeObserver(resize).observe(topLeft);        // название диаграммы меняет ширину меню — и место для поиска
   window.addEventListener('hashchange', () => openAddress(location.hash.slice(1)));
   const refreshTheme = () => { readTheme(); requestDraw(); };
   matchMedia('(prefers-color-scheme: dark)').addEventListener('change', refreshTheme);

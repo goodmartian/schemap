@@ -1,12 +1,13 @@
 {
   "name": "schemap",
   "description": "schemap: database schema diagrams for coding agents.",
-  "owner": { "name": "goodmartian" },
+  "owner": { "name": "goodmartian", "url": "https://github.com/goodmartian" },
   "plugins": [
     {
       "name": "schemap",
       "source": "./plugins/schemap",
-      "description": "Draws a database schema as one HTML file or a claude.ai artifact."
+      "description": "Draws a database schema as one HTML file or a claude.ai artifact.",
+      "author": { "name": "goodmartian", "url": "https://github.com/goodmartian" }
     }
   ]
 }
