@@ -1,4 +1,3 @@
-#!/bin/bash
 # Retakes the README screenshots from examples/storefront/diagram.html with headless Chrome (macOS path),
 # one Chrome run at a time:  bash docs/screenshots/make.sh
 set -euo pipefail
