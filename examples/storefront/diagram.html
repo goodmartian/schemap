@@ -26,13 +26,12 @@
     --radius-area: 12px;
     --control-height: 32px;
     --icon-size: 16px;
-    --search-width: 240px;
+    --search-width: 360px;             /* поиск: имя таблицы и её модуль без многоточия */
     --menu-width: 264px;
     --details-width: 360px;
     --tip-width: 320px;
     --minimap-width: 176px;
     --minimap-height: 112px;
-    --bar-height: 42px;                /* высота панели с одним рядом кнопок: 32 + поля 4 + рамка 1 */
     /* panels keep 12 from the window edge, plus the phone's safe area (notch, home bar) where there is one */
     --edge-top: calc(var(--space-3) + env(safe-area-inset-top, 0px));
     --edge-right: calc(var(--space-3) + env(safe-area-inset-right, 0px));
@@ -91,19 +90,26 @@
     border-radius: var(--radius-outer);
     box-shadow: var(--shadow-overlay);                /* панели лежат поверх холста */
   }
-  #top-left { position: fixed; top: var(--edge-top); left: var(--edge-left); display: flex; align-items: flex-start; gap: var(--space-2); }
-  #top-left .panel { position: static; }
-  #diagram-panel, #status-panel, #mode-panel { max-width: var(--menu-width); }
-  #export-panel { flex: none; }                       /* кнопка-значок не сжимается; меню раскрывается по ширине пунктов */
-  /* подсказка клавиши; шрифт тот же, без моноширного */
-  .shortcut {
-    flex: none; min-width: var(--icon-size); padding: 0 var(--space-1); border: 1px solid var(--color-border); border-radius: var(--radius-inner);
-    font-size: 12px; line-height: 16px; text-align: center; color: var(--color-text-muted);
+  /* Панель инструментов — одна, как в Figma: меню диаграммы словом, остальное значками с подсказкой.
+     Не шире схемы: длинное название диаграммы режется многоточием. */
+  #toolbar {
+    top: var(--edge-top); left: var(--edge-left); z-index: 1; display: flex; align-items: center; gap: var(--space-1);
+    max-width: calc(100% - var(--edge-left) - var(--edge-right));
   }
-  .search-row:focus-within .shortcut, .search-row:has(input:not(:placeholder-shown)) .shortcut { display: none; }
-  @media (hover: none) { .shortcut { display: none; } }   /* на телефоне клавиатуры нет — подсказка лишняя */
-  #search-panel { top: var(--edge-top); right: var(--edge-right); width: var(--search-width); }
+  .tool { position: relative; flex: none; }
+  #diagram-panel { flex: 0 1 auto; min-width: 0; max-width: var(--menu-width); }
+  .divider { flex: none; width: 1px; height: var(--space-4); margin: 0 var(--space-1); background: var(--color-border); }
+  /* Список всплывает под своей кнопкой поверх схемы и не меняет размер панели. */
+  .popover {
+    position: absolute; top: calc(100% + var(--space-2)); left: calc(-1 * var(--space-1) - 1px);
+    min-width: 100%; width: max-content; max-width: var(--menu-width);
+    margin: 0; padding: var(--space-1);
+    background: var(--color-panel); border: 1px solid var(--color-border); border-radius: var(--radius-outer);
+    box-shadow: var(--shadow-overlay);
+  }
+  #search-panel { width: var(--search-width); max-width: calc(100vw - 2 * var(--edge-left)); }
   #zoom-panel { right: var(--edge-right); bottom: var(--edge-bottom); display: flex; gap: var(--space-1); }
+  #zoom-fit { min-width: var(--control-height); justify-content: center; font-variant-numeric: tabular-nums; }   /* масштаб в процентах; нажатие — весь вид */
   .control {
     display: flex;
     align-items: center;
@@ -125,6 +131,8 @@
   li > .control:hover, .control[aria-current] { background: var(--color-row-hover); }
   .square, .quiet { color: var(--color-text-muted); }
   .control:hover, .control:hover .chevron { color: var(--color-text); }
+  /* включённый вид (только ключи) и включённый фильтр — кнопка нажата, как инструмент в Figma */
+  .square[aria-pressed="true"], .square[data-active] { background: var(--color-row-hover); color: var(--color-text); }
   .control:focus-visible { outline: 2px solid var(--color-accent); outline-offset: -2px; }
   .square { width: var(--control-height); justify-content: center; padding: 0; }
   /* у поиска фокус показывает вся панель: поле внутри своей рамки не рисует */
@@ -155,9 +163,10 @@
     outline: none;                                    /* фокус показывает панель вокруг поля (:focus-within), не само поле */
   }
   input::placeholder { color: var(--color-text-muted); }
+  input::-webkit-search-cancel-button { display: none; }   /* поле очищает Esc; свой крестик браузера выбивается из вида */
   .empty { margin: 0; padding: 0 var(--space-2); line-height: var(--control-height); color: var(--color-text-muted); }
   /* Панель описания таблицы — боковая колонка, как свойства задачи в Linear: занимает правый край на всю высоту
-     и сдвигает схему, а не ложится поверх неё. Поиск и масштаб уходят влево от колонки. В узком окне — снизу. */
+     и сдвигает схему, а не ложится поверх неё. Масштаб уходит влево от колонки. В узком окне — снизу. */
   #details {
     top: 0;
     right: 0;
@@ -175,21 +184,14 @@
     /* открыта ли колонка — CSS читает с самой колонки (атрибут hidden), отдельного флага нет.
        У холста своя ширина в пикселях: «auto» её не растягивает, поэтому ширина задана явно. */
     body:has(#details:not([hidden])) #canvas { width: calc(100% - var(--details-width)); }
-    body:has(#details:not([hidden])) :is(#search-panel, #zoom-panel) { right: calc(var(--details-width) + var(--space-3)); }
-    /* ряд меню — по своему содержимому, но не шире схемы: меню не уходят под колонку, а режутся многоточием */
-    body:has(#details:not([hidden])) #top-left { max-width: calc(100% - var(--edge-left) - var(--details-width) - var(--space-3)); }
-    body:has(#details:not([hidden])) #top-left .panel { min-width: 0; }
+    body:has(#details:not([hidden])) #zoom-panel { right: calc(var(--details-width) + var(--space-3)); }
+    body:has(#details:not([hidden])) #toolbar { max-width: calc(100% - var(--edge-left) - var(--details-width) - var(--space-3)); }
   }
-  /* поиск — вторым рядом во всю ширину схемы, когда в ряду с меню ему нет места: узкое окно, открытая колонка
-     описания, длинное название диаграммы. Решает resize() по положению панелей, а не по ширине окна. */
-  body.search-below #search-panel { top: calc(var(--edge-top) + var(--bar-height) + var(--space-2)); left: var(--edge-left); width: auto; }
   @media (max-width: 719px) {
     #details {
       top: auto; left: var(--edge-left); right: var(--edge-right); bottom: var(--edge-bottom); width: auto; max-height: 50%;
       padding: 0; border: 1px solid var(--color-border); border-radius: var(--radius-outer); box-shadow: var(--shadow-overlay);
     }
-    #top-left { right: var(--edge-right); }            /* панели делят ряд; длинные названия режутся многоточием */
-    #top-left .panel { min-width: 0; }
     #minimap-panel { display: none; }                  /* на телефоне мини-карте нет места рядом с описанием */
   }
   #details-top { flex: none; display: flex; align-items: center; gap: var(--space-2); padding: var(--space-1) var(--space-1) var(--space-1) var(--space-4); }
@@ -239,59 +241,53 @@
 </style>
 <canvas id="canvas" role="img" data-label="canvas"></canvas>
 
-<div id="top-left">
-<nav id="diagram-panel" class="panel" data-label="diagramMenu">
-  <button id="menu-button" class="control trigger" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="menu">
-    <span id="menu-label" class="label"></span>
-    <svg class="chevron" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 6l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
-  </button>
-  <ul id="menu" hidden></ul>
-</nav>
-<nav id="status-panel" class="panel" data-label="statusMenu">
-  <button id="status-button" class="control trigger" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="status-menu">
-    <span id="status-label" class="label"></span>
-    <svg class="chevron" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 6l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
-  </button>
-  <ul id="status-menu" hidden></ul>
-</nav>
-<nav id="mode-panel" class="panel" data-label="modeMenu">
-  <button id="mode-button" class="control trigger" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="mode-menu">
-    <span id="mode-label" class="label"></span>
-    <svg class="chevron" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 6l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
-  </button>
-  <ul id="mode-menu" hidden></ul>
-</nav>
-<nav id="export-panel" class="panel" data-label="exportMenu">
-  <button id="export-button" class="control square" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="export-menu" data-label="exportMenu" data-title="exportMenu">
-    <svg class="icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 10V2.75M5.25 5.25L8 2.5l2.75 2.75M3.5 9.5v2.75c0 .69.56 1.25 1.25 1.25h6.5c.69 0 1.25-.56 1.25-1.25V9.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
-  </button>
-  <ul id="export-menu" hidden></ul>
-</nav>
+<div id="toolbar" class="panel" role="toolbar" data-label="toolbar">
+  <div id="diagram-panel" class="tool">
+    <button id="menu-button" class="control trigger" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="menu">
+      <span id="menu-label" class="label"></span>
+      <svg class="chevron" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+    </button>
+    <ul id="menu" class="popover" hidden></ul>
+  </div>
+  <span class="divider" aria-hidden="true"></span>
+  <div id="status-panel" class="tool">
+    <button id="status-button" class="control square" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="status-menu"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 5h20"/><path d="M6 12h12"/><path d="M9 19h6"/></svg></button>
+    <ul id="status-menu" class="popover" hidden></ul>
+  </div>
+  <div class="tool">
+    <button id="mode-button" class="control square" type="button" aria-pressed="false" data-label="modeKeys" data-title="modeKeys"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.586 17.414A2 2 0 0 0 2 18.828V21a1 1 0 0 0 1 1h3a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h1a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h.172a2 2 0 0 0 1.414-.586l.814-.814a6.5 6.5 0 1 0-4-4z"/><circle cx="16.5" cy="7.5" r=".5" fill="currentColor"/></svg></button>
+  </div>
+  <div id="export-panel" class="tool">
+    <button id="export-button" class="control square" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="export-menu" data-label="exportMenu" data-title="exportMenu"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v13"/><path d="m16 6-4-4-4 4"/><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/></svg></button>
+    <ul id="export-menu" class="popover" hidden></ul>
+  </div>
+  <div class="tool">
+    <button id="search-button" class="control square" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="search-panel" aria-keyshortcuts="/ Meta+K Control+K" data-label="searchLabel" data-title="searchHint"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/></svg></button>
+    <div id="search-panel" class="popover" role="search" hidden>
+      <div class="search-row">
+        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/></svg>
+        <input id="search" type="search" data-placeholder="search" data-label="searchLabel" autocomplete="off" spellcheck="false">
+      </div>
+      <ul id="results" hidden></ul>
+    </div>
+  </div>
 </div>
 
 <div id="minimap-panel" class="panel" hidden><canvas id="minimap" data-label="minimap"></canvas></div>
 
-<div id="search-panel" class="panel" role="search">
-  <div class="search-row">
-    <svg class="icon" viewBox="0 0 16 16" aria-hidden="true"><circle cx="7" cy="7" r="4.25" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M10.25 10.25L13 13" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
-    <input id="search" type="search" data-placeholder="search" data-label="searchLabel" aria-keyshortcuts="/ Meta+K Control+K" autocomplete="off" spellcheck="false">
-    <kbd class="shortcut" aria-hidden="true">/</kbd>
-  </div>
-  <ul id="results" hidden></ul>
-</div>
 
 <div id="zoom-panel" class="panel" role="group" data-label="zoom">
-  <button id="zoom-out" class="control square" type="button" data-label="zoomOut"><svg class="icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 8h9" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
-  <button id="zoom-in" class="control square" type="button" data-label="zoomIn"><svg class="icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 8h9M8 3.5v9" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
-  <button id="zoom-fit" class="control quiet" type="button" data-text="fit"></button>
+  <button id="zoom-out" class="control square" type="button" data-label="zoomOut"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/></svg></button>
+  <button id="zoom-fit" class="control quiet" type="button" data-label="fit" data-title="fit"></button>
+  <button id="zoom-in" class="control square" type="button" data-label="zoomIn"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg></button>
 </div>
 
 <aside id="details" class="panel" data-label="details" hidden>
   <div id="details-top">
     <h2 id="details-name"></h2>
-    <button id="details-comment" class="control square" type="button" data-label="comment" data-title="comment" hidden><svg class="icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M4.75 3.5h6.5c.69 0 1.25.56 1.25 1.25v4.5c0 .69-.56 1.25-1.25 1.25H7.5L5 12.5v-2h-.25c-.69 0-1.25-.56-1.25-1.25v-4.5c0-.69.56-1.25 1.25-1.25z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg></button>
-    <button id="details-copy" class="control square" type="button" data-label="copyLink" data-title="copyLink"><svg id="copy-link" class="icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M6.75 9.25l2.5-2.5M7.25 4.75l1-1a2.48 2.48 0 013.5 3.5l-1 1M8.75 11.25l-1 1a2.48 2.48 0 01-3.5-3.5l1-1" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg><svg id="copy-done" class="icon" viewBox="0 0 16 16" aria-hidden="true" hidden><path d="M3.5 8.25l3 3 6-6.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
-    <button id="details-close" class="control square" type="button" data-label="close"><svg class="icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M4.5 4.5l7 7M11.5 4.5l-7 7" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
+    <button id="details-comment" class="control square" type="button" data-label="comment" data-title="comment" hidden><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 17a2 2 0 0 1-2 2H6.828a2 2 0 0 0-1.414.586l-2.202 2.202A.71.71 0 0 1 2 21.286V5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2z"/></svg></button>
+    <button id="details-copy" class="control square" type="button" data-label="copyLink" data-title="copyLink"><svg id="copy-link" class="icon" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg><svg id="copy-done" class="icon" viewBox="0 0 24 24" aria-hidden="true" hidden fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></button>
+    <button id="details-close" class="control square" type="button" data-label="close"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>
   </div>
   <div id="details-body">
     <p id="details-title"></p>
@@ -844,12 +840,12 @@ const { PK, FK, NULLABLE } = FLAG;   // пометки столбца, как и
 // Interface strings. The language comes from the embedded data ("lang"); a new language is one more entry here.
 const STRINGS = {
   en: {
-    canvas: 'Database diagram', diagramMenu: 'Diagram', statusMenu: 'Table status', search: 'Table',
+    canvas: 'Database diagram', toolbar: 'Diagram tools', diagramMenu: 'Diagram', statusMenu: 'Table status', search: 'Table', searchHint: 'Find a table  /',
     searchLabel: 'Find a table', zoom: 'Zoom', zoomOut: 'Zoom out', zoomIn: 'Zoom in', fit: 'Fit',
     details: 'Table details', comment: 'Comment', copyLink: 'Copy link', copied: 'Link copied', close: 'Close',
     columns: 'Columns', incoming: 'Referenced by', notFound: 'Not found', required: 'required',
     allTables: 'All tables', failure: 'The diagram did not open.',
-    modeMenu: 'Columns shown', modeAll: 'All columns', modeKeys: 'Keys only', minimap: 'Diagram map',
+    modeKeys: 'Keys only', minimap: 'Diagram map',
     exportMenu: 'Export schema', copy: { dbml: 'Copy DBML', sql: 'Copy SQL' }, save: { dbml: 'Download DBML', sql: 'Download SQL' },
     exportCopied: 'Copied', copyFailed: 'Not copied', exportSaved: 'Saved', saveFailed: 'Not saved',
     statusLabel: { new: 'new', changed: 'changes', same: '' },                  // mark in the card header
@@ -857,12 +853,12 @@ const STRINGS = {
     statusFilter: { new: 'New', changed: 'Changing', same: 'Unchanged' },       // status menu
   },
   ru: {
-    canvas: 'Схема базы', diagramMenu: 'Диаграмма', statusMenu: 'Статус таблиц', search: 'Таблица',
+    canvas: 'Схема базы', toolbar: 'Инструменты схемы', diagramMenu: 'Диаграмма', statusMenu: 'Статус таблиц', search: 'Таблица', searchHint: 'Поиск таблицы  /',
     searchLabel: 'Поиск таблицы', zoom: 'Масштаб', zoomOut: 'Уменьшить', zoomIn: 'Увеличить', fit: 'Весь вид',
     details: 'Описание таблицы', comment: 'Комментарий', copyLink: 'Скопировать ссылку', copied: 'Ссылка скопирована', close: 'Закрыть',
     columns: 'Столбцы', incoming: 'Ссылаются сюда', notFound: 'Не найдено', required: 'обязательный',
     allTables: 'Все таблицы', failure: 'Схема не открылась.',
-    modeMenu: 'Какие столбцы показать', modeAll: 'Все столбцы', modeKeys: 'Только ключи', minimap: 'Карта схемы',
+    modeKeys: 'Только ключи', minimap: 'Карта схемы',
     exportMenu: 'Выгрузка схемы', copy: { dbml: 'Скопировать DBML', sql: 'Скопировать SQL' }, save: { dbml: 'Скачать DBML', sql: 'Скачать SQL' },
     exportCopied: 'Скопировано', copyFailed: 'Не скопировано', exportSaved: 'Сохранено', saveFailed: 'Не сохранено',
     statusLabel: { new: 'новая', changed: 'меняется', same: '' },
@@ -912,7 +908,7 @@ const LABEL_H = 24, LABEL_PAD = 8;   // подпись области: высо�
 
 const canvas = document.getElementById('canvas');
 const ctx = canvas.getContext('2d', { alpha: false });
-const topLeft = document.getElementById('top-left'), searchPanel = document.getElementById('search-panel');
+const toolbar = document.getElementById('toolbar'), searchPanel = document.getElementById('search-panel');
 const view = { diagram: null, zoom: 1, tx: 0, ty: 0, width: 0, height: 0, dpr: 1, hover: -1, selected: -1,
   hoverRow: null, status: null, mode: 'all', fitZoom: 1, fitted: true, moving: false };
 let SOURCE, DATA, CARD, MODULES, DIAGRAMS, DIAGRAMS_BY_SLUG, TABLES, HAS_STATUS, theme;   // SOURCE — проверенная схема, для выгрузки
@@ -1502,6 +1498,8 @@ function draw() {
       }
     }
     drawMinimap(x0, y0, x1, y1);
+    const percent = `${Math.round(zoom * 100)}%`;     // масштаб на кнопке «весь вид»
+    if (zoomFit.textContent !== percent) zoomFit.textContent = percent;
     reportPins();                                     // метки комментариев — за схемой
   }
 }
@@ -1540,11 +1538,7 @@ function resize() {
   view.height = window.innerHeight;
   canvas.width = Math.round(view.width * view.dpr);
   canvas.height = Math.round(view.height * view.dpr);
-  // поиск сначала в ряду с меню; наезжает на них — уходит вторым рядом
-  document.body.classList.remove('search-below');
-  document.body.classList.toggle('search-below', searchPanel.getBoundingClientRect().left < topLeft.getBoundingClientRect().right + 8);
-  // ниже всех панелей сверху и ещё отступ
-  topInset = Math.max(topLeft.getBoundingClientRect().bottom, searchPanel.getBoundingClientRect().bottom) + 12;
+  topInset = toolbar.getBoundingClientRect().bottom + 12;   // ниже панели инструментов и ещё отступ
   fitTop = topInset + LABEL_H + 4;                    // на общем виде над областями ещё строка их подписей
   minimapShown = !minimapPanel.hidden && minimap.clientWidth > 0;
   if (view.diagram && view.fitted) fit();            // пока вид не трогали, он остаётся «весь вид»
@@ -1675,12 +1669,13 @@ function setMenuOpen(button, list, open) {
   list.hidden = !open;
   button.setAttribute('aria-expanded', String(open));
 }
-function dropdown(button, list) {
+function dropdown(button, list, onOpen = () => {}) {
   MENUS.push([button, list]);
   button.addEventListener('click', () => {
     const open = list.hidden;
     closeMenu();
     setMenuOpen(button, list, open);
+    if (open) onOpen();
   });
 }
 function closeMenu() {
@@ -1711,10 +1706,17 @@ function picker(name, onPick) {
   const list = document.getElementById(`${name}-menu`);
   dropdown(button, list);
   return {
-    // choices: [{ value, label, count }] (count — число или null); visible — показывать ли панель вообще
+    // choices: [{ value, label, count }] (count — число или null), первый — без фильтра; visible — показывать ли вообще.
+    // Кнопка-значок говорит выбор подсказкой и нажатым видом, кнопка со словом — самим словом.
     show(choices, current, visible) {
       panel.hidden = !visible;
-      document.getElementById(`${name}-label`).textContent = choices.find((c) => c.value === current).label;
+      const chosen = choices.find((c) => c.value === current).label, label = document.getElementById(`${name}-label`);
+      if (label) label.textContent = chosen;
+      else {
+        button.toggleAttribute('data-active', current !== choices[0].value);
+        button.title = `${TEXT[`${name}Menu`]}: ${chosen}`;
+        button.setAttribute('aria-label', button.title);
+      }
       list.replaceChildren(...choices.map(({ value, label, count }) => {
         const item = menuAction(label, count, () => { closeMenu(); onPick(value); });
         if (value === current) item.firstChild.setAttribute('aria-current', 'true');
@@ -1737,10 +1739,10 @@ function buildStatusMenu() {                          // пункты — тол
 }
 
 // столбцы: все или только ключи (первичный ключ и оба конца каждой связи) — у каждой диаграммы два вида
-const modePicker = picker('mode', setMode);
-function buildModeMenu() {
-  modePicker.show([{ value: 'all', label: TEXT.modeAll, count: null },
-    { value: 'keys', label: TEXT.modeKeys, count: null }], view.mode, true);
+const modeButton = document.getElementById('mode-button');
+modeButton.addEventListener('click', () => setMode(view.mode === 'keys' ? 'all' : 'keys'));
+function buildModeMenu() {                            // кнопка «только ключи» нажата, пока включён этот вид
+  modeButton.setAttribute('aria-pressed', String(view.mode === 'keys'));
 }
 function setMode(mode) {                              // та же диаграмма в другом виде; выбранная таблица остаётся
   if (mode === view.mode) return;
@@ -1928,7 +1930,8 @@ canvas.addEventListener('gesturechange', (event) => {
 
 document.getElementById('zoom-in').addEventListener('click', () => zoomAt(view.width / 2, view.height / 2, ZOOM_STEP));
 document.getElementById('zoom-out').addEventListener('click', () => zoomAt(view.width / 2, view.height / 2, 1 / ZOOM_STEP));
-document.getElementById('zoom-fit').addEventListener('click', fit);
+const zoomFit = document.getElementById('zoom-fit');
+zoomFit.addEventListener('click', fit);
 
 // ---------- выгрузка: DBML и SQL — в буфер обмена или файлом ----------
 // Их принимают dbdiagram.io, ChartDB, drawDB, draw.io. В артефакте claude.ai файл отдаёт разрешение downloads,
@@ -2145,8 +2148,12 @@ function showResults(list, query = '') {
 function pick(index) {
   search.value = view.diagram.tables[index].name;
   showResults([]);
+  closeMenu();
   showTable(index);
 }
+const searchButton = document.getElementById('search-button');
+function focusSearch() { search.focus(); search.select(); }
+dropdown(searchButton, searchPanel, focusSearch);     // поиск всплывает под своей кнопкой, как меню
 search.addEventListener('input', () => {
   const query = search.value.trim().toLowerCase();
   if (query === '') { showResults([]); return; }
@@ -2172,8 +2179,9 @@ document.addEventListener('keydown', (event) => {     // «/» и Cmd+K (Ctrl+K)
   const typing = event.target instanceof HTMLInputElement;
   if ((event.key === '/' && !typing) || (event.key.toLowerCase() === 'k' && (event.metaKey || event.ctrlKey))) {
     event.preventDefault();
-    search.focus();
-    search.select();
+    closeMenu();
+    setMenuOpen(searchButton, searchPanel, true);
+    focusSearch();
   }
 });
 document.addEventListener('keydown', (event) => {
@@ -2220,7 +2228,7 @@ function start() {
   openAddress(location.hash.slice(1));
   connectComments();
   window.addEventListener('resize', resize);
-  new ResizeObserver(resize).observe(topLeft);        // название диаграммы меняет ширину меню — и место для поиска
+  new ResizeObserver(resize).observe(toolbar);        // высота панели инструментов задаёт верхний край схемы
   window.addEventListener('hashchange', () => openAddress(location.hash.slice(1)));
   const refreshTheme = () => { readTheme(); requestDraw(); };
   matchMedia('(prefers-color-scheme: dark)').addEventListener('change', refreshTheme);
@@ -2234,7 +2242,7 @@ document.addEventListener('DOMContentLoaded', () => {
     start();
   } catch (error) {
     console.error(error);
-    for (const id of ['top-left', 'minimap-panel', 'search-panel', 'zoom-panel', 'details', 'tip', 'canvas']) document.getElementById(id).hidden = true;
+    for (const id of ['toolbar', 'minimap-panel', 'zoom-panel', 'details', 'tip', 'canvas']) document.getElementById(id).hidden = true;
     document.getElementById('failure-text').textContent = TEXT.failure;
     document.getElementById('failure-reason').textContent = error && error.message ? error.message : String(error);
     document.getElementById('failure').hidden = false;

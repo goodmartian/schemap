@@ -1,7 +1,7 @@
 {
   "name": "schemap",
   "displayName": "schemap",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "description": "Draws a database schema as one HTML file or a claude.ai artifact. Sources: SQL migrations, Postgres, Prisma, DBML or a written spec.",
   "author": { "name": "goodmartian", "url": "https://github.com/goodmartian" },
   "homepage": "https://github.com/goodmartian/schemap",
